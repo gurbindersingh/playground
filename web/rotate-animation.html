@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+            .box {
+                height: 350px;
+                width: 350px;
+                background-color: lightskyblue;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: all 0.3s linear;
+                transform: rotate(0deg);
+            }
+            .box.clicked .icon {
+                transition: all 0.3s linear;
+                transform: rotate(180deg);
+            }
+            .box.return .icon {
+                transform: rotate(0deg);
+            }
+        </style>
+
+        <title>Rotate Animation</title>
+    </head>
+
+    <body>
+        <div id="box" class="box">
+            <svg class="icon" style="width:24px;height:24px" viewBox="0 0 24 24">
+                <path
+                    fill="currentColor"
+                    d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"
+                />
+            </svg>
+        </div>
+
+        <script>
+            let elem = document.getElementById('box');
+
+            elem.addEventListener('click', () => {
+                if (elem.classList.contains('clicked')) {
+                    elem.classList.add('return');
+
+                    setTimeout(() => {
+                        elem.classList.remove('clicked');
+                        elem.classList.remove('return');
+                    }, 300);
+                } else {
+                    elem.classList.add('clicked');
+                }
+            });
+        </script>
+    </body>
+</html>

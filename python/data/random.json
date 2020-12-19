@@ -1,0 +1,9 @@
+{
+  "string": "Field 1",
+  "int": 2,
+  "float": 3.14,
+  "array": ["Hello", "World", "!"],
+  "obj": {
+    "field1": "beans"
+  }
+}
