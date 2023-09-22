@@ -36,6 +36,9 @@ empty_bin() {
   exit 0
 }
 
+# =============================================================================
+# Main script
+# =============================================================================
 
 if [[ $# -lt 1 ]]; then
   usage 1
@@ -45,6 +48,10 @@ fi
 trashcan="$HOME/.trash-can/"
 optstring=':hle'
 
+
+if [[ ! -e "$trashcan" ]]; then
+  mkdir -vp
+fi
 
 while getopts "${optstring}" arg; do
   case ${arg} in
