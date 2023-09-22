@@ -14,6 +14,7 @@ usage() {
 
 error() {
   echo "$1" >&2
+  usage 1
   exit "$2"
 }
 
