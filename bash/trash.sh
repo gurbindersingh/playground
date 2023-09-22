@@ -66,5 +66,10 @@ while getopts "${optstring}" arg; do
   esac
 done
 
-echo "Here"
-# mv -v "$@" "$trashcan"
+echo "You are about to delete the following files:"
+ls -1 "$@"
+
+read -rp "Delete? (y/n): " confirm
+if [[ $confirm =~ [yY] ]]; then
+  mv -v "$@" "$trashcan"
+fi
