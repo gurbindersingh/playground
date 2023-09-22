@@ -36,6 +36,7 @@ empty_bin() {
   exit 0
 }
 
+
 # =============================================================================
 # Main script
 # =============================================================================
@@ -46,14 +47,14 @@ fi
 
 
 trashcan="$HOME/.trash-can/"
-optstring=':hle'
+options=':hle'
 
 
 if [[ ! -e "$trashcan" ]]; then
   mkdir -vp
 fi
 
-while getopts "${optstring}" arg; do
+while getopts "${options}" arg; do
   case ${arg} in
     e)
       empty_bin
@@ -77,6 +78,7 @@ echo "You are about to delete the following files:"
 echo ""
 ls -1 "$@"
 echo ""
+
 read -rp "Delete? (y/n): " confirm
 if [[ $confirm =~ [yY] ]]; then
   mv -v "$@" "$trashcan"
