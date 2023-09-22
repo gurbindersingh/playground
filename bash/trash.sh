@@ -67,8 +67,9 @@ while getopts "${optstring}" arg; do
 done
 
 echo "You are about to delete the following files:"
+echo ""
 ls -1 "$@"
-
+echo ""
 read -rp "Delete? (y/n): " confirm
 if [[ $confirm =~ [yY] ]]; then
   mv -v "$@" "$trashcan"
