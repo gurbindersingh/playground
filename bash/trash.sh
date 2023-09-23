@@ -28,7 +28,13 @@ list_files() {
 
 
 empty_bin() {
-  file_count="$(ls -1 $trash_bin | wc -l | tr -d ' ')"
+  file_count="$(find "$trash_bin" -type f | wc -l | tr -d ' ')"
+
+  if [[ $file_count -lt 1 ]]; then
+    echo "The trash bin is empty"
+    exit 0
+  fi
+
   read -rp "Empty bin ($file_count files will be deleted)? (y/n) " confirm
   
   if [[ $confirm =~ [yY] ]]; then
