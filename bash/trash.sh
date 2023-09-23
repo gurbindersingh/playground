@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+
 usage() {
   echo "Usage: trash.sh [OPTIONS] [FILE...]"
   echo ""
@@ -14,25 +15,24 @@ usage() {
 
 error() {
   echo "$1" >&2
-  usage 1
-  exit "$2"
+  usage "$2"
 }
 
 
 
 list_files() {
   echo "Files in trash bin:"
-  ls -lh "$trashcan"
+  ls -lh "$trash_bin"
   exit 0
 }
 
 
 empty_bin() {
-  file_count="$(ls -1 | wc -l | tr -d ' ')"
+  file_count="$(ls -1 $trash_bin | wc -l | tr -d ' ')"
   read -rp "Empty bin ($file_count files will be deleted)? (y/n) " confirm
   
   if [[ $confirm =~ [yY] ]]; then
-    echo "Confirmed"
+    rm -rv "${trash_bin:?}"/*
   fi
   exit 0
 }
@@ -47,12 +47,13 @@ if [[ $# -lt 1 ]]; then
 fi
 
 
-trashcan="$HOME/.trash-can/"
+trash_bin="$HOME/.trash-bin"
 options=':hle'
 
 
-if [[ ! -e "$trashcan" ]]; then
-  mkdir -vp
+if [[ ! -e "$trash_bin" ]]; then
+  echo "Creating $trash_bin"
+  mkdir -vp "$trash_bin"
 fi
 
 while getopts "${options}" arg; do
@@ -75,12 +76,11 @@ while getopts "${options}" arg; do
   esac
 done
 
-echo "You are about to delete the following files:"
-echo ""
+
 ls -1 "$@"
 echo ""
+read -rp "Delete the files above? (y/n): " confirm
 
-read -rp "Delete? (y/n): " confirm
 if [[ $confirm =~ [yY] ]]; then
-  mv -v "$@" "$trashcan"
+  mv -v "$@" "$trash_bin"/
 fi
