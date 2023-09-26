@@ -79,7 +79,7 @@ def fetchTableOfContents(url: str):
     return tocElements
 
 
-def extractUrlsFromToc(tableOfContents: list[str], urlsFileWritePath: str):
+def extractUrlsFromToc(tableOfContents: list[str]):
     LOGGER.debug("Extracting urls from table of contents")
 
     urls = extractUrls("".join(tableOfContents))
@@ -119,7 +119,7 @@ def main():
         cleanedPageFile = f"{cleanedPagesDirectory}/{fileName}"
 
         if Path(cleanedPageFile).exists():
-            LOGGER.debug(f"Cleaned page file '{fileName}' already exists, skipping.")
+            # LOGGER.debug(f"Cleaned page file '{fileName}' already exists, skipping.")
             continue
 
         if Path(rawPageFile).exists():
