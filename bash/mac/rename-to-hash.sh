@@ -19,20 +19,23 @@ for file in "${files[@]}"; do
   
   IFS=' ' read -ra hash_and_filename <<< "$hashed"
   hash="${hash_and_filename[0]}"
-  file_name="${hash_and_filename[1]}"
+  # echo "File: $file"
+  # echo "Hash: $hash"
 
-  IFS='.' read -ra name_and_extension <<< "$file_name"
-  # name="${name_and_extension[0]}"
+  IFS='.' read -ra name_and_extension <<< "$file"
   extension="${name_and_extension[1]}"
-  new_name="$hash.$extension"
+  old_name=$(basename "$file")
+  new_name="${file/${old_name}/${hash}.${extension}}"
+  # echo "Basename: $old_name"
+  # echo "Renaming $file -> $new_name"
 
-  if [[ "$file_name" == "$new_name" ]]; then
-    echo "Skipping $file_name"
+  if [[ "$file" == "$new_name" ]]; then
+    echo "File '$file' is already hashed. Skipping."
     continue;
   fi
 
-  # echo "$name.$extension -> $new_name"
   mv -v "$file" "$new_name"
+  echo ""
 done
 
 
