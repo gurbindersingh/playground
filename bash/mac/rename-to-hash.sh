@@ -10,10 +10,8 @@ fi
 files=( "$@" )
 backup_location="$HOME/.renametohash.backups/"
 
-printf "\n%s\n\n" "[INFO] Backing up files to ${backup_location}."
-rsync -av "${files[@]}" "$backup_location"
-
 for file in "${files[@]}"; do
+  echo ""
   # The md5 command here is macOS specific
   hashed="$(md5 -r "$file")"
   
@@ -34,8 +32,10 @@ for file in "${files[@]}"; do
     continue;
   fi
 
+  printf "%s\n" "[INFO] Backing up files to '${backup_location}'."
+  rsync -a "$file" "$backup_location"
+
   mv -v "$file" "$new_name"
-  echo ""
 done
 
 
