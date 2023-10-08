@@ -23,7 +23,8 @@ for file in "${files[@]}"; do
   IFS='.' read -ra name_and_extension <<< "$file"
   extension="${name_and_extension[1]}"
   old_name=$(basename "$file")
-  new_name="${file/${old_name}/${hash}.${extension}}"
+  # Use quotes to handle white spaces
+  new_name="${file/"${old_name}"/"${hash}.${extension}"}"
   # echo "Basename: $old_name"
   # echo "Renaming $file -> $new_name"
 
