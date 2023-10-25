@@ -1,0 +1,11 @@
+./file.txt
+./read-file-as-array.sh
+./get-user-input.sh
+./app_rollback.sh
+./app_backup.sh
+./convert-dates-mac.sh
+./getopts.sh
+./xargs-on-mac.sh
+./exit-if-var-not-set.sh
+./file list.txt
+./get-running-scripts-location.sh
