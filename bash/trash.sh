@@ -87,7 +87,7 @@ echo ""
 ls -1 "$@"
 echo ""
 read -rp "Move the files above to trash bin? (y/n): " confirm
-
+echo ""
 if [[ $confirm =~ [yY] ]]; then
   mv -v "$@" "$trash_bin"/
 fi
