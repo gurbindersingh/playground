@@ -21,7 +21,8 @@ for file in "${files[@]}"; do
   # echo "Hash: $hash"
 
   IFS='.' read -ra name_and_extension <<< "$file"
-  extension="${name_and_extension[1]}"
+  # Get the last element in the array -> the extension
+  extension="${name_and_extension[-1]}"
   old_name=$(basename "$file")
   # Use quotes to handle white spaces
   new_name="${file/"${old_name}"/"${hash}.${extension}"}"
