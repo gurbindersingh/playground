@@ -1,4 +1,3 @@
-
 #!/usr/bin/awk -f
 
 # Comments are like this

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 logFile="$HOME/logs/run-all-backups.log"
 scriptPath="$(dirname -- "${BASH_SOURCE[0]}")"
