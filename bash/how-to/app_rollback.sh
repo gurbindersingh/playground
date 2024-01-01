@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BACKUP_DIR="/home/app/.backup/myapp"
 APP_DIR="/apps/myapp"

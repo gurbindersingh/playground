@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 NOW="$(date +"%F_%H%M.%S")"
 SRC="/apps/myapp"
