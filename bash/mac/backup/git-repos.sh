@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+echo "[$(date +'%F %H:%M:%S')] Backing up Git repos"
+
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory" || exit 1
 
@@ -21,5 +23,6 @@ for repo in "${repos[@]}"; do
   echo "[$(date +'%F %H:%M:%S')] DONE"
   echo ""
 done
-
+echo "============================================================================="
+echo ""
 
