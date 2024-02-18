@@ -9,7 +9,7 @@ import utils.configs_reader as configs_reader
 import utils.logger_factory as logger_factory
 import utils.path_util as path_util
 
-LOGGER = logger_factory.get_logger("twi-scraper", with_log_file=True)
+LOGGER = logger_factory.get_logger("scraper", with_log_file=True)
 
 
 def readFile(filePath):
@@ -107,8 +107,8 @@ def main():
 
     tableOfContents = fetchTableOfContents(url=configs["toc-url"])
     writeFile(filePath=tocFilePath, content="".join(tableOfContents))
+    # tableOfContents = readFile(tocFilePath)
 
-    tableOfContents = readFile(tocFilePath)
     urls = extractUrlsFromToc(tableOfContents=tableOfContents)
     writeFile(filePath=urlsFilePath, content="\n".join(urls))
     # urls = [url.removesuffix("\n") for url in readFile(urlsFilePath)]
