@@ -1,7 +1,5 @@
 package fiddles;
 
-import leetcode.Main;
-
 public class AdjacencyMatrixGenerator {
 
     public static void main(String[] args) {
