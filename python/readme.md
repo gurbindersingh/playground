@@ -13,7 +13,8 @@
   - [Interrupting a running task](#interrupting-a-running-task)
   - [Pitfalls](#pitfalls)
     - [Concurrency](#concurrency)
-- [Asynchronous programming vs. multi-threading/processing](#asynchronous-programming-vs-multi-threadingprocessing)
+    - [Calling blocking functions](#calling-blocking-functions)
+  - [Asynchronous programming vs. multi-threading/processing](#asynchronous-programming-vs-multi-threadingprocessing)
 
 ## Variable scopes in Python
 
@@ -142,6 +143,15 @@ or simply use the `asyncio.gather()` function. We can also use
 [Task Groups](https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup) 
 for this.
 
-## Asynchronous programming vs. multi-threading/processing
+#### Calling blocking functions
+
+If we have a I/O-bound functions (not defined using `async`), calling them 
+inside a coroutine will block the entire event-loop. This may be the case if 
+you are using function from a library or some old code. This can greatly reduce 
+the performance. To circumvent this issue, we can use the `asyncio.to_thread()` 
+function. This will create a coroutine that can we awaited and execute it in a 
+separate thread.
+
+### Asynchronous programming vs. multi-threading/processing
 
 For I/O-bound tasks use asynchronous programming. For CPU-bound tasks use multi-threading or multi-processing.
