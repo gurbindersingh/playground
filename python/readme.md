@@ -144,4 +144,4 @@ for this.
 
 ## Asynchronous programming vs. multi-threading/processing
 
-For I/O-bound tasks use asynchronous programming. For CPU-bound tasks use multi-threading or -processing.
+For I/O-bound tasks use asynchronous programming. For CPU-bound tasks use multi-threading or multi-processing.
