@@ -19,9 +19,12 @@ async def main():
 
     task1 = asyncio.create_task(say("Bar", PURPLE, 3))
     task2 = asyncio.create_task(say("Foo", GREEN, 2))
-
+    print("awaiting task 1")
     await task1
+    print("task 1 is complete")
+    print("awaiting task 2")
     await task2
+    print("done")
 
 
 if __name__ == "__main__":

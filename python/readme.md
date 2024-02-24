@@ -5,10 +5,13 @@
 - [Table of content](#table-of-content)
 - [Variable scopes in Python](#variable-scopes-in-python)
 - [Writing asynchronous code using asyncio](#writing-asynchronous-code-using-asyncio)
-  - [What is asyncio?](#what-is-asyncio)
+  - [How asyncio works](#how-asyncio-works)
+  - [Asynchronous tasks in Python](#asynchronous-tasks-in-python)
+    - [Tasks](#tasks)
+    - [Futures](#futures)
   - [Bootstrapping an asynchronous application](#bootstrapping-an-asynchronous-application)
   - [Interrupting a running task](#interrupting-a-running-task)
-  - [Gotchas](#gotchas)
+  - [Pitfalls](#pitfalls)
     - [Concurrency](#concurrency)
 
 ## Variable scopes in Python
@@ -16,63 +19,109 @@
 Python variables are scoped to the innermost function, class, or module in
 which they're assigned, unless modified by a `global` or `nonlocal` keyword.
 
-Control blocks like `if`, loops, `with` and `try/catch` blocks _don't_ create a new scope, so a variable assigned inside them is still scoped to a function, class, or module.
+Control blocks like `if`, loops, `with` and `try/catch` blocks _don't_ create a 
+new scope, so a variable assigned inside them is still scoped to a function, 
+class, or module.
 
 ## Writing asynchronous code using asyncio
-
-### What is asyncio?
 
 > This is a summary of the following resources:
 >
 > - https://bbc.github.io/cloudfit-public-docs/
 > - https://docs.python.org/3/library/asyncio-task.html
 >
-> The official documentation is good for quickly looking things up but it doesn't explain things properly.
+> The official documentation is good for quickly looking things up but it 
+> doesn't explain things properly.
 
-This library allows us to write more efficient code by switching betweens tasks when the CPU is idle, e.g. due to IO bound tasks. It does this by using an event-loop.
+### How asyncio works
 
-In Python such tasks are called coroutines. They are one of three awaitable objects:
+The asyncio library allows us to write more efficient code by making use of an 
+event-loop. This allows us to write non-blocking code, e.g. when performing IO 
+bound operations. Whenever a task would cause the CPU to idle, the event-loop 
+will pause it and instead execute another task.
 
-- Coroutines is simply a function defined using the `async` keyword.
-- Tasks are used to run coroutines _concurrently_.
-  - We can also use Task Groups to wait for a number of tasks to finish.
-- Futures are low-level objects representing an eventual result of an asynchronous operation. 
-  - These are rarely required in application level code unless you are writing your own asynchronous library.
+### Asynchronous tasks in Python
+
+In Python tasks that can be paused and resumed are called coroutines. They are 
+simply functions that are defined using the `async` keyword. The point at which 
+a coroutine may be paused by the event-loop is marked using the `await` 
+keyword.
+
+When we define a coroutine like 
+
+```python
+async def foo():
+  # so something
+```
+
+and then call it like so `foo()`, it isn't actually executed. Instead Python 
+creates an object of the class `Coroutine`. To actually call it we have to use 
+`await` keyword first, like so: `await foo()`. In case `foo()` returns any 
+values, then it will also unwrap and return those. 
+
+> **NOTE:**  We can only use the `await` keyword in an `async` function. For 
+> how to execute a Python script see [Bootstrapping an asynchronous application](#bootstrapping-an-asynchronous-application).
+
+Coroutines are one of three awaitable objects:
+
+- Coroutines
+- Tasks
+- Futures
+
+#### Tasks
+
+The event-loop cannot schedule coroutines directly, instead they have to be 
+wrapped in a `Task` object. 
+
+Tasks are used to run coroutines _concurrently_. That means that when we 
+schedule two tasks they will be executed at the "same" time (with the 
+event-loop switching back and forth between them whenever one calls `await`). 
+An example for this can be found in the [how-to](how-to/async-await.py) 
+directory.
+
+We can also use `asyncio.gather()` or 
+[Task Groups](https://docs.python.org/3/library/asyncio-task.html#task-groups) 
+to schedule a number of tasks and wait for them to finish.
+
+#### Futures
+
+Futures are low-level objects representing an result of an asynchronous 
+operation that will be available sometime in the future. They also hold the 
+state of the Future
+
+> These are rarely required in application level code unless you are writing 
+> your own asynchronous library.
 
 > **NOTE:** Tasks and Futures are _not_ thread-safe.
 
-Calling a function that is defined using the `async` keyword does not actually 
-execute it, instead Python implicitly creates an object of class `Coroutine`. 
-To get the value we must unwrap it using the `await` keyword, which can only be 
-used in asynchronous code blocks. Whenever a `Coroutine` object is awaited, the execution of the current task may be paused, but this is not guaranteed.
-
 ### Bootstrapping an asynchronous application
 
-One problem we have with `async` functions is that we can't call them outside 
-of asynchronous code. So to bootstrap an application we can use the 
-`asyncio.run()` function to run an asynchronous function from an synchronous 
-one.
+If we can only `await` a coroutine in another coroutine, then how do we start 
+the script in the first place? For that we use `asyncio.run()`. It's used to 
+execute the entry-point function.
 
 ### Interrupting a running task
 
 There is no explicit method to interrupt a running tasks. Instead we can call `asyncio.sleep(0)` as a workaround. According to the first article listed above, this is efficiently implemented.
 
-### Gotchas
+### Pitfalls
 
 #### Concurrency
 
-The following code
+If you execute coroutines like this
 
 ```py
 await foo()
 await bar()
 ```
 
-does *not* execute concurrently but sequentially. It will simply ensure that if 
-there are already other tasks in the event-loop, they might get a turn if 
-`foo()` blocks.
+you might notice that they are *not* executed concurrently but sequentially. 
+This seems counterintuitive in the beginning. But lets recall what `await` 
+does: it simply tells the event-loop that this operation might block, if this 
+is the case, pause the current task and execute another one. It does not 
+implicitly create a new task. These coroutines are still being executed in the context of the *current* `Task`.
 
-To run code concurrently either do
+To run code concurrently we can explicitly create a task for each and `await` their completion
 
 ```py
 task1 = asyncio.create_task(bar())
