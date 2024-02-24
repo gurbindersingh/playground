@@ -2,17 +2,29 @@ package leetcode;
 
 import java.util.*;
 
-public class ValidParanthesis {
+public class ValidParentheses {
 
-    public static boolean isValid(String s) {
-        if (s.length() == 1) {
+
+    // My initial thought was to assign positive numbers for opening and
+    // negative for closing parenthesis. Then add up the values and check if
+    // the sum is zero. This does not work. Assuming we assign `(` the value
+    // 1, and `}` the value -3, then "(((}" would be a valid string.
+
+
+    public static void main(String[] args) {
+        System.out.println(isValid("()(())({})[]{}"));
+    }
+
+
+    public static boolean isValid(String parenString) {
+        if (parenString.length() == 1) {
             // Because just one paranthesis is invalid
             return false;
-        } else if (s.length() == 0) {
+        } else if (parenString.length() == 0) {
             return true;
         }
 
-        char[] parans = s.toCharArray();
+        char[] parans = parenString.toCharArray();
         Deque<Character> stack = new ArrayDeque<>();
         Map<Character, Character> paranMap = new HashMap<>();
         paranMap.put(')', '(');
