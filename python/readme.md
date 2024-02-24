@@ -13,6 +13,7 @@
   - [Interrupting a running task](#interrupting-a-running-task)
   - [Pitfalls](#pitfalls)
     - [Concurrency](#concurrency)
+- [Asynchronous programming vs. multi-threading/processing](#asynchronous-programming-vs-multi-threadingprocessing)
 
 ## Variable scopes in Python
 
@@ -134,3 +135,7 @@ await task2
 or simply use the `asyncio.gather()` function. We can also use 
 [Task Groups](https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup) 
 for this.
+
+## Asynchronous programming vs. multi-threading/processing
+
+For I/O-bound tasks use asynchronous programming. For CPU-bound tasks use multi-threading or -processing.
