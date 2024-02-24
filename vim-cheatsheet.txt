@@ -314,7 +314,7 @@ clast               display the last error
 ##############################################################################
 
 
-%                   show matching brace, bracket, or parenthese
+%                   show matching brace, bracket, or parentheses
 gf                  edit the file whose name is under or after the cursor
 gd                  when the cursor is on a local variable or function, jump to its declaration
 ''                  return to the line where the cursor was before the latest jump
