@@ -95,10 +95,10 @@ to schedule a number of tasks and wait for them to finish.
 
 Futures are low-level objects representing an result of an asynchronous 
 operation that will be available sometime in the future. They also hold the 
-state of the Future
+state of the Future.
 
-> These are rarely required in application level code unless you are writing 
-> your own asynchronous library.
+These are rarely required in application level code unless you are writing  
+your own asynchronous library.
 
 > **NOTE:** Tasks and Futures are _not_ thread-safe.
 
