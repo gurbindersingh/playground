@@ -26,9 +26,15 @@ class, or module.
 
 ## Writing asynchronous code using asyncio
 
-> This is a summary of the following resources:
+> **Some useful resources**:
 >
 > - https://bbc.github.io/cloudfit-public-docs/
+> - https://faculty.ai/tech-blog/a-guide-to-using-asyncio/
+> - https://blog.apify.com/python-asyncio-tutorial/
+> - https://blog.devgenius.io/mastering-asynchronous-programming-in-python-a-comprehensive-guide-ef1e8e5b35db
+> - https://datarodeo.io/python/optimizing-python-workflows-with-asyncio-for-asynchronous-programming/
+> - https://medium.com/@tushar_aggarwal/master-the-power-of-asyncio-a-step-by-step-guide-ac0c46719811
+> - https://superfastpython.com/python-asyncio/
 > - https://docs.python.org/3/library/asyncio-task.html
 >
 > The official documentation is good for quickly looking things up but it 
