@@ -18,28 +18,29 @@ public class ValidParentheses {
 
     public static boolean isValid(String parenString) {
         if (parenString.length() == 1) {
-            // Because just one paranthesis is invalid
+            // Because just one parenthesis is invalid
             return false;
-        } else if (parenString.length() == 0) {
+        } else if (parenString.isEmpty()) {
             return true;
         }
 
-        char[] parans = parenString.toCharArray();
+        char[] parentheses = parenString.toCharArray();
         Deque<Character> stack = new ArrayDeque<>();
-        Map<Character, Character> paranMap = new HashMap<>();
-        paranMap.put(')', '(');
-        paranMap.put('}', '{');
-        paranMap.put(']', '[');
+        Map<Character, Character> parenMap = new HashMap<>();
+        parenMap.put(')', '(');
+        parenMap.put('}', '{');
+        parenMap.put(']', '[');
 
-        for (char paran : parans) {
-            Character mappedParan = paranMap.get(paran);
+        for (char parenthesis : parentheses) {
+            Character matchingParenthesis = parenMap.get(parenthesis);
+            boolean isOpeningParenthesis = matchingParenthesis == null;
 
-            if (mappedParan == null) {
-                stack.push(paran);
-            } else if (stack.isEmpty() || stack.pop() != mappedParan) {
+            if (isOpeningParenthesis) {
+                stack.push(parenthesis);
+            } else if (stack.isEmpty() || !stack.pop().equals(matchingParenthesis)) {
                 return false;
             }
         }
-        return 0 == stack.size();
+        return stack.isEmpty();
     }
 }
