@@ -5,7 +5,7 @@ directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
 source="$HOME/Library/Application Support/Firefox/Profiles"
-dest="$HOME/$(cat ff-settings.txt)"
+dest="$HOME/$(cat configs/ff-settings.txt)"
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$dest'"
 rsync -a "$source" "$dest"

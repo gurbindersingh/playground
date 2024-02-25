@@ -6,7 +6,7 @@ cd "$directory" || exit 1
 
 SRC="$HOME/Library/Application Support/Code"
 USER_SETTINGS="$SRC/User"
-DST="$HOME/$(cat vscode-dest.txt)"
+DST="$HOME/$(cat configs/vscode-dest.txt)"
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of VS Code settings"
 rsync -av "$USER_SETTINGS/settings.json" "$USER_SETTINGS/snippets" "$DST"

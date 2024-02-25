@@ -5,7 +5,7 @@ directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory" || exit 1
 
 drive="/Volumes/Seagate"
-readarray -t clouds < "clouds.txt"
+readarray -t clouds < "configs/clouds.txt"
 
 if [[ ! -e $drive ]]; then
   echo "[ERROR] External drive $drive not found."
