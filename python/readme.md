@@ -44,13 +44,14 @@ class, or module.
 ### How asyncio works
 
 The asyncio library allows us to write more efficient code by making use of an 
-event-loop. This allows us to write non-blocking code, e.g. when performing IO 
-bound operations. Whenever a task would cause the CPU to idle, the event-loop 
-will pause it and instead execute another task.
+event-loop that pauses and resumes execution of code when it would otherwise 
+lead to some blocking operation, e.g. when performing IO. Whenever a task would 
+cause the CPU to idle, the event-loop will pause it and instead execute another 
+task.
 
 ### Asynchronous tasks in Python
 
-In Python tasks that can be paused and resumed are called coroutines. They are 
+In Python, tasks that can be paused and resumed are called coroutines. They are 
 simply functions that are defined using the `async` keyword. The point at which 
 a coroutine may be paused by the event-loop is marked using the `await` 
 keyword.
@@ -62,12 +63,13 @@ async def foo():
   # so something
 ```
 
-and then call it like so `foo()`, it isn't actually executed. Instead Python 
+and then call it like so `foo()`, it isn't actually executed. Instead, Python 
 creates an object of the class `Coroutine`. To actually call it we have to use 
-`await` keyword first, like so: `await foo()`. In case `foo()` returns any 
+the `await` keyword first, like so: `await foo()`. If `foo()` returns any 
 values, then it will also unwrap and return those. 
 
-> **NOTE:**  We can only use the `await` keyword in an `async` function. For 
+> [!NOTE]
+> We can only use the `await` keyword in an `async` function. For 
 > how to execute a Python script see [Bootstrapping an asynchronous application](#bootstrapping-an-asynchronous-application).
 
 Coroutines are one of three awaitable objects:
@@ -82,8 +84,7 @@ The event-loop cannot schedule coroutines directly, instead they have to be
 wrapped in a `Task` object. 
 
 Tasks are used to run coroutines _concurrently_. That means that when we 
-schedule two tasks they will be executed at the "same" time (with the 
-event-loop switching back and forth between them whenever one calls `await`). 
+schedule two tasks they will be added to the event-loop at the same time. 
 An example for this can be found in the [how-to](how-to/async-await.py) 
 directory.
 
@@ -100,7 +101,8 @@ state of the Future.
 These are rarely required in application level code unless you are writing  
 your own asynchronous library.
 
-> **NOTE:** Tasks and Futures are _not_ thread-safe.
+> [!NOTE]
+> Tasks and Futures are _not_ thread-safe.
 
 ### Bootstrapping an asynchronous application
 
