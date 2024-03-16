@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download</title>
+</head>
+<body>
+  <button onclick="downloadJSON()">Download JSON</button>
+  <script>
+    function downloadJSON() {
+      // Create a sample JSON object
+      var data = {
+        "name": "John Doe",
+        "age": 30,
+        "city": "New York"
+      };
+
+      // Convert the JSON object to a string
+      var jsonData = JSON.stringify(data);
+
+      // Create a Blob containing the JSON data
+      var blob = new Blob(["text"], { type: 'text/plain' });
+
+      // Create a temporary anchor element
+      var a = document.createElement('a');
+      var url = window.URL.createObjectURL(blob);
+
+      // Set the anchor's attributes to download the JSON file
+      a.href = url;
+      a.download = 'data.txt';
+
+      // Append the anchor to the body and trigger the download
+      document.body.appendChild(a);
+      a.click();
+
+      // Remove the anchor from the body
+      document.body.removeChild(a);
+
+      // Revoke the Object URL to free up resources
+      window.URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
