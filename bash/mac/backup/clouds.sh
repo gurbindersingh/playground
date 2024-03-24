@@ -13,7 +13,9 @@ if [[ ! -e $drive ]]; then
 fi
 
 for cloud in "${clouds[@]}"; do
-  echo "[$(date +'%F %H:%M:%S')] Creating backup of '$cloud'"
+  source="$HOME/$cloud/"
+  destination="${drive:?}/$cloud/"
+  echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$destination'."
   rsync -av \
     --exclude=".git" \
     --exclude=".tmp.drive*" \
@@ -21,7 +23,7 @@ for cloud in "${clouds[@]}"; do
     --exclude="target" \
     --exclude="*.ini" \
     --exclude="Sync.Cache" \
-    "$HOME/$cloud" "${drive:?}"
+    "$source" "$destination"
     
   echo "[$(date +'%F %H:%M:%S')] DONE"
   echo ""
