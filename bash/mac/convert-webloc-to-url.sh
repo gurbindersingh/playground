@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+log_file="$HOME/logs/convert-webloc.log"
 script_directory="$(dirname -- "${BASH_SOURCE[0]}")"
 # shellcheck source=configs/links.sh
 source "$script_directory/configs/links.sh"
 
+{
 find "$links_directory" -type f -iname '*.webloc' | while read -r file; do
   url=$(rg --no-line-number --trim '<string>.+</string>' "$file" | sed -E 's/<(\/)?string>//g')
   url_file="${file/%webloc/url}"
@@ -13,3 +15,4 @@ find "$links_directory" -type f -iname '*.webloc' | while read -r file; do
   echo "URL=$url" >> "$url_file"
   mv "$file" "$HOME/.trash-bin"
 done
+} >> "$log_file" 2>&1
