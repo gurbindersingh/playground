@@ -9,8 +9,9 @@ out
 .DS_Store
 __pycache__
 
+**/configs
+
 python/config.json
-python/configs/reminder-webhook.json
 python/data/allCountries.txt
 python/data/local
 python/data/twi
@@ -19,5 +20,6 @@ python/configs/scraper-config.json
 r/.Rhistory
 
 bash/mac/wallpaper-location.txt
-bash/mac/backup/configs/*
 bash/mac/temp
+
+
