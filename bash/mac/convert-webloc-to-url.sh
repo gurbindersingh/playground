@@ -7,12 +7,15 @@ script_directory="$(dirname -- "${BASH_SOURCE[0]}")"
 source "$script_directory/configs/links.sh"
 
 {
-find "$links_directory" -type f -iname '*.webloc' | while read -r file; do
-  url=$(rg --no-line-number --trim '<string>.+</string>' "$file" | sed -E 's/<(\/)?string>//g')
-  url_file="${file/%webloc/url}"
-  
-  echo "[InternetShortcut]" > "$url_file"
-  echo "URL=$url" >> "$url_file"
-  mv "$file" "$HOME/.trash-bin"
-done
+  find "$links_directory" -type f -iname '*.webloc' | while read -r file; do
+    url=$(/opt/homebrew/bin/rg --no-line-number --trim '<string>.+</string>' "$file" | sed -E 's/<(\/)?string>//g')
+    url_file="${file/%webloc/url}"
+    
+    echo "[InternetShortcut]" > "$url_file"
+    echo "URL=$url" >> "$url_file"
+    
+    echo "[$(date +'%F %H:%M:%S')] Converted $file"
+    mv "$file" "$HOME/.trash-bin"
+  done
+  echo "[$(date +'%F %H:%M:%S')] DONE"
 } >> "$log_file" 2>&1

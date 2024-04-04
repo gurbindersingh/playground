@@ -28,7 +28,7 @@ list_files() {
 
 
 empty_bin() {
-  file_count="$(find "$trash_bin" -type f | wc -l | tr -d ' ')"
+  file_count="$(find "$trash_bin" -type f | wc -l)"
 
   if [[ $file_count -lt 1 ]]; then
     echo "The trash bin is empty"
