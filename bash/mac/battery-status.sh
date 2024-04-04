@@ -2,7 +2,6 @@
 set -e
 
 logFile="$HOME/logs/battery-status.log"
-bash --version >> "$logFile" 2>&1
 # echo "here"
 status="$(pmset -g ps | grep -Eo '[0-9]{1,3}%; (dis)?charg(ing|ed)')"
 state="$(echo "$status" | grep -Eo '(dis)?charg(ing|ed)')"
