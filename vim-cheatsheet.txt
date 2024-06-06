@@ -50,6 +50,8 @@ CTRL-f              move the cursor forward by a screen of text
 CTRL-b              move the cursor backward by a screen of text
 CTRL-u              move the cursor up by half a screen
 CTRL-d              move the cursor down by half a screen
+CTRL-y              move screen up on line, leave cursor in place
+CTRL-e              move screen down on line, leave cursor in place
 
 H                   move the cursor to the top of the screen.
 M                   move the cursor to the middle of the screen.
