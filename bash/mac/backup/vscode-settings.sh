@@ -11,7 +11,7 @@ USER_SETTINGS="$SRC/User"
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of VS Code settings at '$DST'"
 rsync -av "$USER_SETTINGS/settings.json" "$USER_SETTINGS/snippets" "$DST"
-rsync -av "$USER_SETTINGS/keybindings.json" "$DST/mac"
+cp -v "$USER_SETTINGS/keybindings.json" "$DST/mac.keybindings.json"
 echo "[$(date +'%F %H:%M:%S')] Making copy to '$COPY_AT'"
 rsync -av "$DST/" "$COPY_AT/"
 echo "[$(date +'%F %H:%M:%S')] DONE"
