@@ -4,11 +4,12 @@ set -e
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
-dest="$HOME/$(cat configs/mac.txt)"
+. configs/mac.sh
 
 echo "[$(date +'%F %H:%M:%S')] Backing up Mac settings"
-defaults read > "$dest/defaults.txt"
-defaults read -g > "$dest/defaults.global.txt"
+defaults read > "$HOME/$cloud/defaults.txt"
+defaults read -g > "$HOME/$cloud/defaults.global.txt"
+
 echo "[$(date +'%F %H:%M:%S')] DONE"
 echo "============================================================================="
 echo ""
