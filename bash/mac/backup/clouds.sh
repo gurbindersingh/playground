@@ -16,7 +16,7 @@ for cloud in "${clouds[@]}"; do
   source="$HOME/$cloud/"
   destination="${drive:?}/$cloud/"
   echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$destination'."
-  rsync -av \
+  rsync -avb \
     --exclude=".git" \
     --exclude=".tmp.drive*" \
     --exclude=".idea" \
