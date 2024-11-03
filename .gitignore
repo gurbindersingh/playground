@@ -22,4 +22,7 @@ r/.Rhistory
 bash/mac/wallpaper-location.txt
 bash/mac/temp
 
+rsync
 
+target
+rust/Cargo.lock
