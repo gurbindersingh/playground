@@ -6,16 +6,17 @@ cd "$directory"
 
 . configs/clouds.sh
 
-drive="/Volumes/${main_drive:?}"
+drive="/Volumes/${mirror_drive:?}"
+source_drive="/Volumes/${main_drive:?}"
 timestamp="$(date +'%F_%H%M.%S')"
 
-if [[ ! -e "$drive" ]]; then
-    echo "[ERROR] External drive $drive not found."
+if [[ ! (-e "$drive" && -e "$source_drive") ]]; then
+    echo "[ERROR] External drive $drive or $source_drive not found."
     exit 1
 fi
 
-for cloud in "${clouds[@]}"; do
-    source="$HOME/$cloud/"
+for cloud in "${mirror_dirs[@]}"; do
+    source="$source_drive/$cloud/"
     destination="$drive/$cloud/"
 
     # NOTE: Incremental backups do not work on some file systems, like exFAT.
