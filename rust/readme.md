@@ -23,3 +23,4 @@
       - Only one mutable borrow is allowed at a time. An object can only be
         mutably borrowed again after the previous reference has been used for 
         the last time.
+- There are explicit lifetime annotations
