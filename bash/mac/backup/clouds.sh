@@ -23,8 +23,8 @@ for cloud in "${clouds[@]}"; do
     #       of deleted and changed files.
     echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$destination'."
     rsync -avb \
-        --delete-after \
         --backup-dir="$drive/$cloud.changed/$timestamp" \
+        --delete-after \
         --exclude=".git" \
         --exclude=".tmp.drive*" \
         --exclude=".idea" \
