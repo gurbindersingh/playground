@@ -4,7 +4,7 @@ set -e
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
-. configs/ff-settings.sh
+. configs/firefox.sh
 
 source="$HOME/Library/Application Support/Firefox/Profiles"
 now="$(date +'%F.%H%M.%S')"
