@@ -1,0 +1,253 @@
+---
+title: "Retirement projections"
+author: "Gurbinder Singh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+This is an example of a retirement calculator:
+https://www.nerdwallet.com/calculator/retirement-calculator#results
+
+```{r}
+library(tidyverse)
+```
+
+# Setup initial data
+
+## Inflation data
+
+Source: https://www.infina.at/trends/statistik-inflation/.
+
+```{r}
+inflation.data <- tibble(
+  year = c( 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 
+            2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 
+            2022, 2023),
+  inflation = c(2.3, 2.7, 1.8, 1.3, 2.1, 2.3, 1.5, 2.2, 3.2, 0.5, 1.9, 3.3, 
+                  2.4, 2.0, 1.7, 0.9, 0.9, 2.1, 2.0, 1.5, 1.4, 2.8, 8.6, 7.8)
+  )
+
+average.inflation <- 1 + mean(inflation.data$inflation) / 100
+```
+
+
+## Setup
+
+```{r}
+# TODO: add variable and fix cost properties
+current.net.salary <- 1500
+net.annual.salary <- current.net.salary * 14
+savings.percentage <- 0.15
+pension.estimate <- 0.72
+investment.return.pa <- 1.075
+capital.gains.tax <- 0.275
+current.savings <- 2000
+
+# Increase ratio relative to inflation.
+increase.ratio <- 0.75
+average.salary.increase <- 1 + (average.inflation - 1) * increase.ratio
+
+start.year <- 30 
+end.year <- 80
+pension.start.year <- 65
+working.years <- pension.start.year - start.year
+total.years <- end.year - start.year
+
+projection <- tibble(
+  year = start.year:end.year,
+  inflation = rep(average.inflation, total.years + 1) ^ (0:total.years),
+  salary = c(rep(net.annual.salary, working.years), 
+             rep(0, total.years - working.years + 1))
+)
+
+write_csv2(projection, "projections-1.csv")
+```
+
+
+# Projected income
+
+## Salary
+
+Calculate the projected monthly salary assuming we work until the age of 65 and the salary increases at a certain praction of the inflation.
+
+```{r}
+projection <-
+  projection |>
+  mutate(salary = salary * (average.salary.increase ^ (0:total.years)))
+```
+
+## Pension
+
+The pension is roughly 80% of the average salary of the 30 highest paid years. Then we calculate the monthly pension up to the age of 90. Again we assume an annual increase of 2/3 of the inflation.
+
+```{r}
+expected.starting.pension <-
+  (projection |>
+     filter(salary > 0) |>
+     tail(30))$salary |>
+  mean() * pension.estimate
+
+pension.years <- total.years - working.years
+
+projection$pension <- 
+  c(rep(0, working.years), 
+    expected.starting.pension * (average.salary.increase ^ (0:pension.years)))
+
+write_csv2(projection, "projections-2.csv")
+```
+
+
+# Living costs
+
+For the living costs (based on life style) we assume to be the salary minus the percentage we save.
+
+```{r}
+projection$living.costs <- 
+  net.annual.salary * (1 - savings.percentage) * projection$inflation
+```
+
+
+# Savings and investments
+
+Calculate the cummulative savings per year as well as if the same amount were invested.
+
+## Savings
+
+```{r}
+projection <-
+  projection |>
+  # mutate(deficit = pmin(0, available.money)) |>
+  # mutate(savings.var = pmax(0, available.money), 
+  #        savings.fix = salary * savings.percentage)
+  mutate(savings.var = salary + pension - living.costs) |>
+  mutate(savings.fix = salary * savings.percentage + pmin(0, savings.var))
+         
+
+projection$savings.var[1] <- projection$savings.var[1] + current.savings
+projection$savings.fix[1] <- projection$savings.fix[1] + current.savings
+
+projection <- 
+  projection |>
+  mutate(savings.var.cmlt = cumsum(savings.var),
+         savings.fix.cmlt = cumsum(savings.fix))
+
+write_csv2(projection, "projections-3.csv")
+```
+
+## Investements
+
+### Formula
+
+The equation for calculating the net value of a share is
+
+$$
+n = g - (g - o) * t
+$$
+
+where `n` is the net value, `g` the gross value, `o` the original value and `t` the tax.
+
+We can use this to derive the inverse:
+
+$$
+n = g - \frac{g}{g} * (g-o)*t \\
+n = g * (1 - \frac{g-o}{g} * t)
+$$
+
+since 
+
+$$
+growth = \frac{g}{o} \\
+\Rightarrow \  
+g = growth * o
+$$
+
+we can also write
+
+$$
+n = g * (1 - \frac{o*growth - o}{o*growth} * t) \\
+n = g * (1 - \frac{growth - 1}{growth} * t) \\
+g = \frac{n}{(1 - \frac{growth - 1}{growth} * t)}
+$$
+
+### Code
+
+```{r}
+gross.value <- function(net.value, growth.factor, tax) {
+  profit.margin <- (growth.factor - 1) / growth.factor
+  # cat(net.value, profit.margin, tax, "\n")
+  net.value / (1 - profit.margin * tax)
+}
+
+process.investment <- function(annual.investments) {
+  investments.value <- annual.investments
+  invested.amount <- annual.investments
+  
+  # At the start the vector market.value
+  for (i in 2:length(annual.investments)) {
+    current <- investments.value[i - 1] * investment.return.pa
+    base <- invested.amount[i - 1]
+    new <- annual.investments[i]
+    growth.factor <- current / base
+    # cat("invested = ", base,
+    #     ", investments =", current,
+    #     ", growth =", growth.factor,
+    #     ", new investments =", new,
+    #     "\n")
+    
+    if (new >= 0 || current <= 0) {
+      investments.value[i] <- pmax(0, current + new)
+      invested.amount[i] <- pmax(0, base + new)
+      
+    } else {
+      new <- abs(new)
+      to.sell <- gross.value(new, growth.factor, capital.gains.tax)
+      # cat("need =", new, ", sell =", to.sell, "\n")
+      
+      investments.value[i] <- pmax(0, current - to.sell)
+      invested.amount[i] <- pmax(0, base - to.sell / growth.factor)
+    }
+  }
+  investments.value
+}
+
+projection$invested.var <- process.investment(projection$savings.var)
+projection$invested.fix <- process.investment(projection$savings.fix)
+
+write_csv2(projection, "projections-4.csv")
+```
+
+# Plot
+
+```{r}
+projection |>
+  select(year,
+         savings.var.cmlt,
+         savings.fix.cmlt,
+         invested.var,
+         invested.fix) |>
+  pivot_longer(cols = !c("year"),
+               names_to = "type",
+               values_to = "amount") |>
+  filter(amount > 0) |>
+  ggplot(aes(x = year, y = amount, color = type)) +
+  geom_line() +
+  labs(
+    title = "Available capital per year",
+    subtitle = paste(
+      "Assuming a capital growth of",
+      (investment.return.pa * 100 - 100),
+      "percent per year and a salary increase of",
+      (increase.ratio * 100),
+      "percent of the inflation. \nAnd a fixed savings rate of",
+      (savings.percentage * 100),
+      "percent of the salary (", current.net.salary, 
+      "Euro in", start.year, ")"
+    ),
+    x = "Years",
+    y = "Amount"
+  ) +
+  scale_x_continuous(breaks = seq(start.year, end.year, 10)) +
+  scale_y_continuous(n.breaks = 10)
+
+ggsave("available-capital.2.png", scale = 2)
+```
