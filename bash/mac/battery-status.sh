@@ -9,7 +9,7 @@ percentage="$(echo "$status" | grep -Eo '[0-9]{1,3}')"
 message="Battery at ${percentage}%. ${state^}"
 
 {
-    if [[ $state == 'discharging' && $percentage -le 25 || $state == 'charging' && $percentage -ge 75 ]]; then
+    if [[ $state == 'discharging' && $percentage -le 30 || $state == 'charging' && $percentage -ge 70 ]]; then
         osascript -e 'display dialog "'"$message."'" with title "Battery Status" buttons {"OK"} default button "OK"'
         # osascript -e 'display notification "'"$message."'" with title "Battery Status"'
     fi
