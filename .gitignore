@@ -25,4 +25,9 @@ bash/mac/temp
 rsync
 
 target
-rust/Cargo.lock
+Cargo.lock
+.gradle
+.settings
+.project
+.classpath
+java/bin/main
