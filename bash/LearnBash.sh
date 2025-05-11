@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # First line of the script is the shebang which tells the system how to execute
 # the script: http://en.wikipedia.org/wiki/Shebang_(Unix)
