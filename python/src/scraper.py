@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 import utils.configs_reader as configs_reader
 import utils.logger_factory as logger_factory
-import utils.path_util as path_util
+import utils.path_utils as path_util
 
 LOGGER = logger_factory.get_logger("scraper", with_log_file=True)
 
@@ -96,7 +96,7 @@ def extractUrls(htmlString: str):
 
 def main():
     configs = configs_reader.read_configs(
-        f"{path_util.get_project_root()}/configs/scraper-config.json"
+        f"{path_util.PROJECT_ROOT}/configs/scraper-config.json"
     )
 
     baseDirectory = configs["base-directory"]
