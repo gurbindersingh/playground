@@ -31,8 +31,9 @@ def _find_project_root(
     """
     current = (start or Path(__file__)).resolve()
 
-    # The *parents* sequence does *not* include the path itself, so we
-    # prepend *current* explicitly to also check the starting directory.
+    # The *parents* sequence does *not* include the path itself, so we prepend
+    # *current* explicitly to also check the starting directory. This is just a
+    # precaution. This file should not be located in the root directory.
     for directory in (current, *current.parents):
         if _contains_marker(directory, markers):
             return directory
@@ -42,7 +43,12 @@ def _find_project_root(
     )
 
 
-PROJECT_ROOT = _find_project_root()
+PROJECT_ROOT: Path = _find_project_root()
+
+
+def path_from_project_root(*path_components: str) -> Path:
+    return PROJECT_ROOT.joinpath(*path_components)
+
 
 if __name__ == "__main__":
-    print(_find_project_root())
+    print(path_from_project_root("configs"))
