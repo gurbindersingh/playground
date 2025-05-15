@@ -3,5 +3,6 @@ set -e
 
 . .config.sh
 
-restic backup ./ 
+restic backup ./
+bash .forget.sh
 unset RESTIC_PASSWORD
