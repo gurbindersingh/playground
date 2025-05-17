@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -e
+
+directory="$(dirname -- "${BASH_SOURCE[0]}")"
+cd "$directory"
+
+# . ./configs/clouds.sh
+
+if [[ "$#" -lt 2 ]]; then
+  echo "Missing parameter(s)"
+  echo "Usage: sync_cloud SRC DEST"
+  echo "  NOTE: Paths should not containing a trailing slash."
+  exit 1
+fi
+
+# TODO: move this to the calling script.
+# if [[ ! -e "$drive" ]]; then
+#   echo "[ERROR] External drive $drive not found."
+#   exit 1
+# fi
+
+source="$1"
+destination="$2"
+timestamp="$(date +'%F_%H%M.%S')"
+backup_dir="$destination.changed/$timestamp"
+
+# NOTE: Incremental backups do not work on some file systems, like exFAT.
+#       So instead we use the `--backup-dir` feature to create an archive
+#       of deleted and changed files.
+echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$destination'."
+echo "[$(date +'%F %H:%M:%S')] Changed and deleted files be saved at '$backup_dir'."
+
+rsync -avb \
+  --backup-dir="$backup_dir" \
+  --delete-after \
+  --exclude=".git" \
+  --exclude=".tmp.drive*" \
+  --exclude=".idea" \
+  --exclude="target" \
+  --exclude="*.ini" \
+  --exclude="Sync.Cache" \
+  "$source" "$destination"
+
+echo "[$(date +'%F %H:%M:%S')] DONE"
+echo ""
