@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-. .config.sh
+directory="$(dirname -- "${BASH_SOURCE[0]}")"
+cd "$directory"
+
+. ./example.config.sh
 
 restic snapshots
 unset $RESTIC_PASSWORD

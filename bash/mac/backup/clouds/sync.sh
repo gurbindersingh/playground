@@ -8,7 +8,7 @@ cd "$directory"
 
 if [[ "$#" -lt 2 ]]; then
   echo "Missing parameter(s)"
-  echo "Usage: sync_cloud SRC DEST"
+  echo "Usage: sync SRC DEST"
   echo "  NOTE: Paths should not containing a trailing slash."
   exit 1
 fi
