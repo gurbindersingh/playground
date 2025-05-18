@@ -14,5 +14,10 @@ cd "$directory"
 
 backup_sources=("$@")
 
-restic --insecure-no-password backup --skip-if-unchanged "${backup_sources[@]:?}"
+restic \
+  --insecure-no-password backup \
+  --skip-if-unchanged \
+  --exclude-file ./configs/restic-exclude \
+  "${backup_sources[@]:?}"
+# --dry-run \
 restic --insecure-no-password check

@@ -36,9 +36,11 @@ rsync -avb \
   --exclude=".git" \
   --exclude=".tmp.drive*" \
   --exclude=".idea" \
+  --exclude=".vscode" \
   --exclude="target" \
   --exclude="*.ini" \
   --exclude="Sync.Cache" \
+  --exclude=".DS_Store" \
   "$source" "$destination"
 
 echo "[$(date +'%F %H:%M:%S')] DONE"
