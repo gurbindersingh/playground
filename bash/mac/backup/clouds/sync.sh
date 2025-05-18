@@ -13,12 +13,6 @@ if [[ "$#" -lt 2 ]]; then
   exit 1
 fi
 
-# TODO: move this to the calling script.
-# if [[ ! -e "$drive" ]]; then
-#   echo "[ERROR] External drive $drive not found."
-#   exit 1
-# fi
-
 source="$1"
 destination="$2"
 timestamp="$(date +'%F_%H%M.%S')"
