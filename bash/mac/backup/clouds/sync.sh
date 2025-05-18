@@ -4,8 +4,6 @@ set -e
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
-# . ./configs/clouds.sh
-
 if [[ "$#" -lt 2 ]]; then
   echo "Missing parameter(s)"
   echo "Usage: sync SRC DEST"
@@ -18,12 +16,12 @@ destination="$2"
 timestamp="$(date +'%F_%H%M.%S')"
 backup_dir="$destination.changed/$timestamp"
 
-# NOTE: Incremental backups do not work on some file systems, like exFAT.
-#       So instead we use the `--backup-dir` feature to create an archive
-#       of deleted and changed files.
 echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$destination'."
 echo "[$(date +'%F %H:%M:%S')] Changed and deleted files be saved at '$backup_dir'."
 
+# NOTE: Incremental backups do not work on some file systems, like exFAT.
+#       So instead we use the `--backup-dir` feature to create an archive
+#       of deleted and changed files.
 rsync -avb \
   --backup-dir="$backup_dir" \
   --delete-after \
