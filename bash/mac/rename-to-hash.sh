@@ -7,37 +7,36 @@ if [[ $# -le 0 ]]; then
   exit 1
 fi
 
-files=( "$@" )
+files=("$@")
 backup_location="$HOME/.renametohash.backups/"
 
 for file in "${files[@]}"; do
   echo ""
+  # Hash the file and extract the hash from the returned string.
   # The md5 command here is macOS specific
-  hashed="$(md5 -r "$file")"
-  
-  IFS=' ' read -ra hash_and_filename <<< "$hashed"
-  hash="${hash_and_filename[0]}"
-  # echo "File: $file"
-  # echo "Hash: $hash"
+  hash="$(md5 -r "$file" | awk '{print $1}')"
 
-  IFS='.' read -ra name_and_extension <<< "$file"
-  # Get the last element in the array -> the extension
-  extension="${name_and_extension[-1]}"
+  # Split on every dot and get the last string in the list.
+  extension="$(awk -F '.' '{print $NF}' <<<"$file")"
   old_name=$(basename "$file")
-  # Use quotes to handle white spaces
+  # Use bash parameter expansion to replace the old name in the file path with
+  # the new name.
   new_name="${file/"${old_name}"/"${hash}.${extension}"}"
   # echo "Basename: $old_name"
-  # echo "Renaming $file -> $new_name"
 
   if [[ "$file" == "$new_name" ]]; then
     echo "File '$file' is already hashed. Skipping."
-    continue;
+    continue
+  fi
+
+  if [[ -e "$new_name" ]]; then
+    echo "File $new_name already exists. Skipping."
+    continue
   fi
 
   printf "%s\n" "[INFO] Backing up files to '${backup_location}'."
   rsync -a "$file" "$backup_location"
 
+  # echo "Renaming $file -> $new_name"
   mv -v "$file" "$new_name"
 done
-
-
