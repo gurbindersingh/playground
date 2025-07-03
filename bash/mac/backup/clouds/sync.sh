@@ -35,5 +35,6 @@ rsync -avb \
   --exclude=".DS_Store" \
   "$source" "$destination"
 
+dot_clean "$destination"
 echo "[$(date +'%F %H:%M:%S')] DONE"
 echo ""
