@@ -15,6 +15,8 @@ for cloud in "${clouds[@]}"; do
   ./sync.sh "$HOME/$cloud/" "$main_drive/$cloud"
 done
 
+dot_clean "$main_drive/"
+
 if [[ ! -e "$mirror_drive" ]]; then
   echo "[INFO] Mirror drive not mounted. Not running restic backup."
   exit 0
