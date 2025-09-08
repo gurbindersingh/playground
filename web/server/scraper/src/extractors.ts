@@ -1,5 +1,6 @@
 import { chromium } from "@playwright/test";
 import * as cheerio from "cheerio";
+import { saveFile } from "./utils/file_util";
 
 /**
  * Adds a delay.
@@ -11,7 +12,7 @@ import * as cheerio from "cheerio";
 async function delay(min = 1000, max = 10000) {
   return new Promise((resolve) => {
     const delay = Math.round(Math.max(min, Math.random() * max));
-    console.log(`Delay ${delay}s`);
+    console.log(`Delay ${delay} ms`);
     setTimeout(resolve, delay);
   });
 }
@@ -31,7 +32,7 @@ export async function extractContent(
   }[],
 ) {
   const browser = await chromium.launch();
-  const extractedContent: string[] = [];
+  const pagesContent: string[] = [];
 
   for (const pageConfig of pages) {
     console.log(`Extracting page ${pageConfig.url}.`);
@@ -39,12 +40,12 @@ export async function extractContent(
     await browserPage.goto(pageConfig.url);
 
     const content = await browserPage.content();
-    Bun.write(pageConfig.saveTo, content);
-    extractedContent.push(content);
+    await saveFile(content, pageConfig.saveTo);
+    pagesContent.push(content);
     await delay();
   }
   browser.close();
-  return extractedContent;
+  return pagesContent;
 }
 
 /**
