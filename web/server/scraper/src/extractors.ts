@@ -1,6 +1,5 @@
 import { chromium } from "@playwright/test";
 import * as cheerio from "cheerio";
-import { pathInDataDirectory } from "./utils/file_util";
 
 /**
  * Adds a delay.
@@ -11,8 +10,9 @@ import { pathInDataDirectory } from "./utils/file_util";
  */
 async function delay(min = 1000, max = 10000) {
   return new Promise((resolve) => {
-    console.log("Delay");
-    setTimeout(resolve, Math.max(min, Math.random() * max));
+    const delay = Math.round(Math.max(min, Math.random() * max));
+    console.log(`Delay ${delay}s`);
+    setTimeout(resolve, delay);
   });
 }
 
@@ -39,32 +39,12 @@ export async function extractContent(
     await browserPage.goto(pageConfig.url);
 
     const content = await browserPage.content();
-    Bun.write(pathInDataDirectory(pageConfig.saveTo), content);
+    Bun.write(pageConfig.saveTo, content);
     extractedContent.push(content);
     await delay();
   }
   browser.close();
   return extractedContent;
-}
-
-/**
- *
- * @param filePaths HTML file to read from the file system.
- * @param restrictToElement HTML element in which to search for links.
- * @returns List of URLs.
- */
-export async function extractLinksFromHtmlFile(
-  filePaths: string,
-  restrictToElement = "body",
-) {
-  console.log(`Reading file: ${filePaths}.`);
-
-  const file = Bun.file(pathInDataDirectory(filePaths));
-  if (!file.exists()) return [];
-  const content = await file.text();
-
-  const links = await extractLinks(content, restrictToElement);
-  return links;
 }
 
 /**
@@ -75,7 +55,6 @@ export async function extractLinksFromHtmlFile(
  */
 export async function extractLinks(html: string, restrictToElement = "body") {
   const $ = cheerio.load(html);
-
   return (
     $(restrictToElement)
       .find("a")
@@ -86,4 +65,21 @@ export async function extractLinks(html: string, restrictToElement = "body") {
       // Filter out all blank links
       .filter((l) => l)
   );
+}
+
+export async function reduceToText(
+  html: string,
+  keep = "p, h1, h2, h3, h4, h5, h6",
+  remove = "script, iframe, img",
+) {
+  let $ = cheerio.load(html);
+  $(remove).remove();
+  let elements = $(keep);
+
+  let content = elements
+    .map((_, elem) => $.html(elem))
+    .get()
+    .join("\n");
+  content = `<html>${content}</html>`;
+  return content;
 }
