@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { getConfigs } from "../configs/twi-scraper";
-import { extractContent, extractLinks, reduceToText } from "./extractors";
+import { scrapePages, extractLinks, reduceToText } from "./extractors";
 import {
   appendToFileWithBackup,
   fileExists,
@@ -9,42 +9,55 @@ import {
   saveFile,
 } from "./utils/file_util";
 
-async function scrapeStartpage(
-  configs: ReturnType<typeof getConfigs>,
-  mock = false,
-) {
-  if (mock)
-    return [await readFile(configs.dataDirectory, configs.startPage.saveTo)];
-  else return await extractContent([configs.startPage]);
+interface ScrapedPage {
+  url: string;
+  lastScraped: Date;
+  rawFile: string;
+  cleanedFile?: string;
 }
 
+/**
+ * Extracts the URLs from all anchor tags on this page. The results only
+ * contain URLs that match the current site.
+ *
+ * @param html HTML page from which to extract the links.
+ * @param configs Scraper configs.
+ * @returns A list of URLs that have not already been scraped.  */
 async function extractNewLinks(
   html: string,
   configs: ReturnType<typeof getConfigs>,
 ) {
   console.log("Extracting new links.");
 
-  const previousLinks = await readFile(
+  const scrapedLinks = await readFile(
     configs.dataDirectory,
     configs.links.saveTo,
   );
-
-  const newLinks = (await extractLinks(html, configs.links.selector)).filter(
-    (link) => link.startsWith(configs.siteUrl) && !previousLinks.includes(link),
+  // Filter out all outgoing links (those that point to other sites) and links
+  // that have already been scraped.
+  const newLinks = extractLinks(html, configs.links.selector).filter(
+    (link) => link.startsWith(configs.siteUrl) && !scrapedLinks.includes(link),
   );
   return newLinks;
 }
 
+/**
+ * Creates the necessary page configs for scraping.
+ *
+ * @param urls The links for which to create the configs.
+ * @param scraperConfigs Scraper configs.
+ * @returns A list of page configs.
+ */
 async function createSubPageConfigs(
-  newLinks: string[],
-  configs: ReturnType<typeof getConfigs>,
+  urls: string[],
+  scraperConfigs: ReturnType<typeof getConfigs>,
 ) {
-  const { siteUrl, dataDirectory, savedPages: files } = configs;
-  return newLinks
-    .map((link) => ({
-      url: link,
-      endsWithSlash: link.endsWith("/"),
-      saveTo: link.substring(siteUrl.length).replaceAll("/", "."),
+  const { siteUrl, dataDirectory, savedPages: files } = scraperConfigs;
+  return urls
+    .map((url) => ({
+      url: url,
+      saveTo: url.substring(siteUrl.length).replaceAll("/", "."),
+      endsWithSlash: url.endsWith("/"),
     }))
     .map((pageConfig) => ({
       url: pageConfig.url,
@@ -59,20 +72,20 @@ async function createSubPageConfigs(
 }
 
 async function cleanUpPages(
-  files: string[],
+  filePaths: string[],
   configs: ReturnType<typeof getConfigs>,
 ) {
-  if (files.length < 1) throw Error("Empty array");
+  if (filePaths.length < 1) throw Error("Empty array");
 
-  for (const file of files) {
-    console.log("Cleaning up file", file);
+  for (const path of filePaths) {
+    console.log("Cleaning up file", path);
     const html = await readFile(
       configs.dataDirectory,
       configs.savedPages.raw,
-      file,
+      path,
     );
 
-    const cleanedPage = await reduceToText(html, configs.textNodes);
+    const cleanedPage = reduceToText(html, configs.textNodes);
     if (configs.filters.some((filter) => cleanedPage.includes(filter)))
       continue;
     else
@@ -80,7 +93,7 @@ async function cleanUpPages(
         cleanedPage,
         configs.dataDirectory,
         configs.savedPages.cleaned,
-        file,
+        path,
       );
   }
 }
@@ -111,31 +124,41 @@ async function saveNewLinks(
 /**
  * Entry point for the scraper.
  * Workflow:
- * 1. Scrape the start page.
- * 2. Extract all links from this page. Keep only the new ones.
- * 3. Scrape pages referenced by those links.
+ * 1. Scrape the start page(s).
+ * 2. Extract all links (href attributes) from them.
+ * 3. Keep only those that have not been scraped yet and remove those pointing
+ *    to different sites.
+ * 4. Scrape pages referenced by those links.
+ * 5. Clean up pages.
  */
 async function main() {
-  const mock = true;
+  const isMock = true;
   const configs = getConfigs();
-  const pagesHtml = await scrapeStartpage(configs, mock);
-  const newLinks: string[] = [];
 
-  for (const html of pagesHtml) {
-    newLinks.push(...(await extractNewLinks(html, configs)));
-  }
+  const startPagesHtml: string[] = isMock
+    ? await Promise.all(
+        configs.startPages.map((page) =>
+          readFile(configs.dataDirectory, page.saveTo),
+        ),
+      )
+    : await scrapePages(configs.startPages);
+  // Use a Set here to filter out duplicate URLs.
+  const newLinks: string[] = (
+    await Promise.all(
+      startPagesHtml.map((page) => extractNewLinks(page, configs)),
+    )
+  ).flatMap((links) => links);
+
   const newPagesConfigs = await createSubPageConfigs(newLinks, configs);
-  const rawPages: string[] = [];
+  isMock
+    ? await Promise.all(newPagesConfigs.map((conf) => readFile(conf.saveTo)))
+    : await scrapePages(newPagesConfigs);
 
-  if (!mock) rawPages.push(...(await extractContent(newPagesConfigs)));
-  else
-    rawPages.push(
-      ...(await readdir(
-        pathInDataDirectory(configs.dataDirectory, configs.savedPages.raw),
-      )),
-    );
   cleanUpPages(
-    rawPages.sort((a, b) => a.localeCompare(b)),
+    newPagesConfigs
+      // FIXME: the clean up function expects the file name, not full path
+      .map((conf) => conf.saveTo)
+      .sort((a, b) => a.localeCompare(b)),
     configs,
   );
   saveNewLinks(newPagesConfigs, configs);

@@ -1,20 +1,19 @@
 import { chromium } from "@playwright/test";
 import * as cheerio from "cheerio";
 import { saveFile } from "./utils/file_util";
+import { sleep } from "bun";
 
 /**
  * Adds a delay.
  *
  * @param min Minimum delay in milliseconds.
  * @param max Maximum delay in milliseconds.
- * @returns A promise that will be fulfilled after the delay.
+ * @returns A random delay.
  */
-async function delay(min = 1000, max = 10000) {
-  return new Promise((resolve) => {
-    const delay = Math.round(Math.max(min, Math.random() * max));
-    console.log(`Delay ${delay} ms`);
-    setTimeout(resolve, delay);
-  });
+function randomDelay(min = 1000, max = 10000) {
+  const delay = Math.round(Math.max(min, Math.random() * max));
+  console.log(`Delay ${delay} ms`);
+  return delay;
 }
 
 /**
@@ -25,7 +24,7 @@ async function delay(min = 1000, max = 10000) {
  * @param pages Array of pages to extract.
  * @returns Content of the pages.
  */
-export async function extractContent(
+export async function scrapePages(
   pages: {
     url: string;
     saveTo: string;
@@ -42,7 +41,7 @@ export async function extractContent(
     const content = await browserPage.content();
     await saveFile(content, pageConfig.saveTo);
     pagesContent.push(content);
-    await delay();
+    await sleep(randomDelay());
   }
   browser.close();
   return pagesContent;
@@ -54,7 +53,7 @@ export async function extractContent(
  * @param restrictToElement HTML element in which to search for links.
  * @returns List of URLs.
  */
-export async function extractLinks(html: string, restrictToElement = "body") {
+export function extractLinks(html: string, restrictToElement = "body") {
   const $ = cheerio.load(html);
   return (
     $(restrictToElement)
@@ -68,7 +67,7 @@ export async function extractLinks(html: string, restrictToElement = "body") {
   );
 }
 
-export async function reduceToText(
+export function reduceToText(
   html: string,
   keep = "p, h1, h2, h3, h4, h5, h6",
   remove = "script, iframe, img",
