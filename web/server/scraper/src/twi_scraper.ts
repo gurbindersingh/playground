@@ -1,20 +1,11 @@
-import { readdir } from "node:fs/promises";
 import { getConfigs } from "../configs/twi-scraper";
-import { scrapePages, extractLinks, reduceToText } from "./extractors";
+import { extractLinks, reduceToText, scrapePages } from "./extractors";
 import {
   appendToFileWithBackup,
   fileExists,
-  pathInDataDirectory,
   readFile,
   saveFile,
 } from "./utils/file_util";
-
-interface ScrapedPage {
-  url: string;
-  lastScraped: Date;
-  rawFile: string;
-  cleanedFile?: string;
-}
 
 /**
  * Extracts the URLs from all anchor tags on this page. The results only
