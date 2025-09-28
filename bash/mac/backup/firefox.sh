@@ -24,7 +24,8 @@ echo ""
 restic --insecure-no-password forget \
   --prune \
   --keep-daily 30 \
-  --keep-weekly 24 \
+  --keep-weekly 12 \
+  --keep-monthly 6 \
   --repo "$repo"
 
 restic --insecure-no-password --repo "$repo" check

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 
 logFile="$HOME/logs/run-all-backups.log"
-scriptPath="$(dirname -- "${BASH_SOURCE[0]}")"
 
 {
-    bash "$scriptPath/jetbrains-configs.sh"
-    bash "$scriptPath/firefox.sh"
-    bash "$scriptPath/mac-settings.sh"
-    bash "$scriptPath/repos.sh"
-    printf "\n\n"
-} >> "$logFile" 2>&1
+  cd "$(dirname -- "${BASH_SOURCE[0]}")" || echo "[ERROR] Failed to cd." && exit 1
+  bash jetbrains-configs.sh
+  bash firefox.sh
+  bash repos.sh
+  printf "\n\n"
+} >>"$logFile" 2>&1
