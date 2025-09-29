@@ -6,13 +6,10 @@ cd "$directory"
 
 . configs/firefox.sh
 
-source="$HOME/Library/Application Support/Firefox/Profiles"
-repo="$HOME/${dest:?}/backup"
-
 # NOTE: Change into the source directory so that changes to the metadata in
 #       the parent directories does not trigger a snapshot.
-cd "$source"
-echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '$dest'"
+cd "${source:?Source not set}"
+echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '${repo:?Repo not set.}'"
 restic backup --insecure-no-password --repo "$repo" --skip-if-unchanged ./
 echo "[$(date +'%F %H:%M:%S')] DONE"
 echo "============================================================================="
