@@ -8,7 +8,7 @@ cd "$directory" || exit 1
 
 . ./configs/repos.sh
 
-echo "[$(date +'%F %H:%M:%S')] Creating backup of '$repos'"
+echo "[$(date +'%F %H:%M:%S')] Creating backup of '$repos' at '$dest'"
 rsync -av \
   --exclude=".tmp.drive*" \
   --exclude=".idea" \

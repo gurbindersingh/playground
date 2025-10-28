@@ -10,7 +10,6 @@ logFile="$HOME/logs/run-all-backups.log"
   }
   set +e
   echo "[INFO] Running backups"
-  bash jetbrains-configs.sh
   bash firefox.sh
   bash repos.sh
   printf "\n\n"
