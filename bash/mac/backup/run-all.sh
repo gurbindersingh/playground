@@ -11,6 +11,7 @@ logFile="$HOME/logs/run-all-backups.log"
   set +e
   echo "[INFO] Running backups"
   bash firefox.sh
+  bash thunderbird.sh
   bash repos.sh
   printf "\n\n"
 } >>"$logFile" 2>&1
