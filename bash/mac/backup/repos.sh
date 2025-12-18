@@ -28,7 +28,7 @@ cd "$directory" || exit 1
 #       the parent directories does not trigger a snapshot.
 cd "${source:?Source not set}"
 
-[ -d "$repo" ] || restic init --insecure-no-password --repo "$repo"
+[ -d "$repo:?Repo not set" ] || restic init --insecure-no-password --repo "$repo"
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '${repo:?Repo not set.}'"
 restic backup --insecure-no-password --repo "$repo" --skip-if-unchanged ./
