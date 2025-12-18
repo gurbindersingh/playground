@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+echo "[$(date +'%F %H:%M:%S')] Backing up Firefox profile"
+
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
@@ -9,7 +11,9 @@ cd "$directory"
 # NOTE: Change into the source directory so that changes to the metadata in
 #       the parent directories does not trigger a snapshot.
 cd "${source:?Source not set}"
-[ -d "$repo" ] || restic init --insecure-no-password --repo "$repo"
+
+[ -d "${repo:?Repo not set}" ] || restic init --insecure-no-password --repo "$repo"
+restic --insecure-no-password --repo "$repo" unlock
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '${repo:?Repo not set.}'"
 restic backup --insecure-no-password --repo "$repo" --skip-if-unchanged ./

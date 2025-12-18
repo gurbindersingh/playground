@@ -6,29 +6,14 @@ echo "[$(date +'%F %H:%M:%S')] Backing up Git repos"
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory" || exit 1
 
-. ./configs/repos.sh
-
-# echo "[$(date +'%F %H:%M:%S')] Creating backup of '$repos' at '$dest'"
-# rsync -av \
-#   --exclude=".tmp.drive*" \
-#   --exclude=".idea" \
-#   --exclude="target" \
-#   --exclude="*.ini" \
-#   --exclude="node_modules" \
-#   --exclude=".venv" \
-#   "$HOME/${repos:?}" "$HOME/${dest:?}"
-#
-# echo ""
-# echo "[$(date +'%F %H:%M:%S')] DONE"
-# echo ""
-# echo "============================================================================="
-# echo ""
+. configs/repos.sh
 
 # NOTE: Change into the source directory so that changes to the metadata in
 #       the parent directories does not trigger a snapshot.
 cd "${source:?Source not set}"
 
-[ -d "$repo:?Repo not set" ] || restic init --insecure-no-password --repo "$repo"
+[ -d "${repo:?Repo not set}" ] || restic init --insecure-no-password --repo "$repo"
+restic --insecure-no-password --repo "$repo" unlock
 
 echo "[$(date +'%F %H:%M:%S')] Creating backup of '$source' at '${repo:?Repo not set.}'"
 restic backup --insecure-no-password --repo "$repo" --skip-if-unchanged ./
