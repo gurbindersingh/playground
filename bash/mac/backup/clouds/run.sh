@@ -6,16 +6,16 @@ cd "$directory"
 
 . ./configs/clouds.sh
 
-if [[ ! -e "${main_drive:?Variable not set}" ]]; then
-  echo "[ERROR] Drive '$main_drive' is not connected"
-  exit 1
+if [[ -e "${main_drive:?Variable not set}" ]]; then
+  for cloud in "${clouds[@]}"; do
+    ./sync.sh "$HOME/$cloud/" "$main_drive/$cloud"
+  done
+  # Remove the attribute files created by macOS
+  dot_clean "$main_drive/"
+else
+  echo "[INFO] Drive '$main_drive' is not connected"
+  exit 0
 fi
-
-for cloud in "${clouds[@]}"; do
-  ./sync.sh "$HOME/$cloud/" "$main_drive/$cloud"
-done
-
-dot_clean "$main_drive/"
 
 if [[ ! -e "$mirror_drive" ]]; then
   echo "[INFO] Mirror drive not mounted. Not running restic backup."
