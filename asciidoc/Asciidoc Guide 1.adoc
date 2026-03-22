@@ -1,0 +1,1595 @@
+= AsciiDoc Comprehensive Guide
+:doctype: book
+:toc: left
+:toclevels: 4
+:sectnums:
+:sectanchors:
+:icons: font
+:experimental:
+:reproducible:
+:revnumber: 1.1
+:revdate: 2026-03-22
+:description: Comprehensive reference-style AsciiDoc guide.
+
+[.lead]
+This guide is a practical, reference-style overview of AsciiDoc authoring.
+It covers the core language, the features most teams actually use, and the major implementation-specific features you are likely to meet in Asciidoctor.
+
+IMPORTANT: There is no single perfectly uniform implementation of AsciiDoc.
+This guide distinguishes between portable syntax and processor-specific behavior when that distinction matters.
+
+== Scope
+
+This guide aims to cover the mainstream authoring surface of AsciiDoc comprehensively:
+
+* document structure
+* sections and metadata
+* paragraphs and inline markup
+* lists
+* admonitions
+* delimited blocks
+* links and cross-references
+* attributes
+* includes and conditionals
+* tables
+* images and media
+* source code, callouts, and syntax highlighting
+* footnotes, bibliography, glossary, and index terms
+* STEM, passthroughs, roles, options, and backend-specific features
+
+Where behavior is implementation-specific, examples assume Asciidoctor unless stated otherwise.
+
+== Quick start
+
+A minimal document:
+
+....
+= My Document
+Author Name
+:toc:
+
+== Introduction
+
+AsciiDoc turns plain text into structured output.
+
+* It supports lists
+* links: https://example.com[Example]
+* and inline formatting like *bold* and _emphasis_
+....
+
+A typical command-line workflow with Asciidoctor:
+
+[source,bash]
+-----
+asciidoctor mydoc.adoc
+asciidoctor-pdf mydoc.adoc
+asciidoctor -b docbook mydoc.adoc
+-----
+
+== Mental model
+
+AsciiDoc is line-oriented and context-sensitive.
+Most constructs are created by one of four mechanisms:
+
+* prefixes, such as `==` for sections or `*` for list items
+* block delimiters, such as `----` or `====`
+* macros, such as `image::diagram.png[]`
+* attributes, such as `:toc:` or `{product-name}`
+
+A useful rule is to separate three things in your head:
+
+. *Structure* such as sections, lists, and tables
+. *Rendering controls* such as attributes, roles, and options
+. *Backend-specific behavior* such as raw HTML, docinfo, or PDF page breaks
+
+== Processor landscape
+
+The language is broader than any one processor.
+In practice, most current documentation workflows use Asciidoctor.
+
+A portability model that works well:
+
+* treat headings, paragraphs, lists, anchors, links, images, tables, and basic blocks as portable
+* treat attributes, includes, and conditionals as common but somewhat processor-dependent
+* treat UI macros, extension APIs, raw passthroughs, docinfo, and advanced publishing hooks as Asciidoctor-centric
+
+== Document header and metadata
+
+=== Title
+
+The document title usually appears on the first line:
+
+....
+= Project Handbook
+....
+
+=== Author and revision lines
+
+Classic header form:
+
+....
+= Project Handbook
+Ada Lovelace <ada@example.com>
+v2.3, 2026-03-22: Editorial refresh
+....
+
+How revision fields are parsed can vary slightly by processor, but this form is common.
+
+=== Header attributes
+
+Header attributes are declared before the first section.
+They configure rendering and expose metadata.
+
+....
+= Project Handbook
+:toc:
+:toclevels: 3
+:sectnums:
+:icons: font
+:source-highlighter: rouge
+:description: Internal engineering handbook
+:keywords: engineering, handbook, operations
+....
+
+Common attributes:
+
+[cols="1,3"]
+|===
+|Attribute |Purpose
+
+|`toc`
+|Enable a table of contents.
+
+|`toclevels`
+|Set maximum depth shown in the table of contents.
+
+|`sectnums`
+|Enable automatic section numbering.
+
+|`sectanchors`
+|Add anchor links to section titles in supported backends.
+
+|`icons`
+|Select icon behavior for admonitions.
+
+|`source-highlighter`
+|Enable syntax highlighting integration.
+
+|`doctype`
+|Choose document type such as `article`, `book`, or `manpage`.
+
+|`experimental`
+|Enable selected experimental syntax in Asciidoctor, including UI macros.
+
+|`reproducible`
+|Reduce timestamp and build-environment variance.
+|===
+
+=== Setting, unsetting, and using attributes
+
+Set an attribute:
+
+....
+:project-name: Atlas
+....
+
+Set an empty attribute:
+
+....
+:toc:
+....
+
+Unset an attribute:
+
+....
+:project-name!:
+....
+
+Reference an attribute inline:
+
+....
+Welcome to {project-name}.
+....
+
+=== Attribute precedence
+
+In a typical Asciidoctor workflow, precedence is roughly:
+
+. attributes passed by the CLI or API
+. document-defined attributes
+. processor defaults
+
+CLI/API attributes may be locked, meaning the document cannot override them.
+
+== Sections
+
+=== Basic section levels
+
+....
+= Document Title
+== Level 1
+=== Level 2
+==== Level 3
+===== Level 4
+====== Level 5
+....
+
+The document title uses a single `=`.
+Body sections typically begin at `==`.
+
+=== Explicit section IDs
+
+....
+[[deployment-guide]]
+== Deployment Guide
+....
+
+or:
+
+....
+[#deployment-guide]
+== Deployment Guide
+....
+
+Processors usually generate implicit IDs from headings, but explicit IDs are safer for long-lived references.
+
+=== Discrete headings
+
+A discrete heading looks like a heading but does not create a structural section.
+
+....
+[discrete]
+=== API Notes
+....
+
+== Paragraphs and line handling
+
+=== Normal paragraphs
+
+Plain text separated by blank lines becomes paragraphs.
+A soft wrap in source does not force a line break in output.
+
+....
+This is one paragraph that may
+span multiple source lines.
+
+This is a new paragraph.
+....
+
+=== Forced line breaks
+
+A line ending with ` +` forces a break in the rendered paragraph.
+
+....
+Line one +
+Line two
+....
+
+Another approach is `[%hardbreaks]`:
+
+....
+[%hardbreaks]
+This block
+preserves line breaks.
+....
+
+=== Literal paragraphs
+
+Indenting a paragraph makes it literal in classic syntax:
+
+....
+ This is a literal paragraph.
+ It preserves spaces and line breaks.
+....
+
+For maintainability, explicit literal or listing blocks are usually clearer.
+
+== Inline formatting
+
+=== Emphasis, strong, and monospace
+
+....
+_italic_
+*bold*
+`monospace`
+*_bold italic_*
+*`bold monospace`*
+....
+
+=== Superscript and subscript
+
+....
+^superscript^
+~subscript~
+....
+
+=== Marking and UI macros
+
+These are common in Asciidoctor, especially with `:experimental:` enabled.
+
+....
+#highlighted text#
+kbd:[Ctrl+Shift+P]
+btn:[Save]
+menu:File[Export, PDF]
+....
+
+=== Escaping markup
+
+....
+\*not bold\*
+\_not italic\_
+\`not code\`
+pass:[*also not bold*]
+....
+
+== Character references and replacements
+
+Examples:
+
+....
+(C)
+(TM)
+(R)
+&#169;
+&#x2192;
+A -- B
+A -> B
+Wait...
+....
+
+Exact typographic output depends on processor and backend.
+
+== Comments
+
+=== Line comments
+
+....
+// This line is a comment.
+....
+
+=== Comment blocks
+
+.....
+////
+Everything in this block is a comment.
+It will not appear in output.
+////
+.....
+
+== Lists
+
+=== Unordered lists
+
+....
+* Item one
+* Item two
+** Nested item
+*** Deeply nested item
+* Item three
+....
+
+=== Ordered lists
+
+....
+. First
+. Second
+.. Nested ordered
+... Nested again
+. Third
+....
+
+=== Checklist lists
+
+Often supported by Asciidoctor:
+
+....
+* [x] Completed
+* [ ] Open
+* [*] In progress
+* [-] Cancelled
+....
+
+=== Description lists
+
+....
+CPU:: Central processing unit
+RAM:: Random access memory
+API:: Application programming interface
+....
+
+A complex description item:
+
+....
+Term::
++
+Additional paragraph for the term.
++
+* nested list item
+* another item
+....
+
+=== List continuation
+
+A lone `+` continues the current list item with another block.
+This is essential when attaching paragraphs, source blocks, tables, or admonitions to a list item.
+
+=== Mixed list example
+
+.....
+. Step one
++
+[source,bash]
+----
+echo "inside list item"
+----
++
+* supporting point
+* another supporting point
+. Step two
+.....
+
+== Links, anchors, and cross-references
+
+=== External links
+
+....
+https://example.com
+link:https://example.com[Example site]
+mailto:team@example.com[Email the team]
+....
+
+=== Attributes in links
+
+....
+:docs-url: https://docs.example.com
+See link:{docs-url}[the documentation].
+....
+
+=== Anchors and xrefs
+
+....
+[[install]]
+== Installation
+
+See <<install>>.
+See <<install,installation instructions>>.
+....
+
+=== Inter-document xrefs
+
+....
+xref:operations.adoc[Operations Guide]
+xref:operations.adoc#backup[Backup section]
+....
+
+Resolution rules vary by backend and site generator.
+Antora, for example, extends xref handling significantly.
+
+== IDs, roles, and options
+
+Blocks can carry an attribute list.
+Common forms:
+
+....
+[#id]
+[.role]
+[%option]
+[quote, Ada Lovelace, Notes]
+....
+
+Combined form:
+
+....
+[#intro.lead%collapsible]
+== Introduction
+....
+
+Practical meaning:
+
+* IDs create stable anchors
+* roles add semantic or styling hooks
+* options toggle processor- or backend-specific behavior
+
+== Admonitions
+
+=== Paragraph admonitions
+
+....
+NOTE: This is a note.
+TIP: This is a tip.
+IMPORTANT: This is important.
+WARNING: This is a warning.
+CAUTION: This is a caution.
+....
+
+=== Block admonitions
+
+.....
+[NOTE]
+====
+This is a multi-paragraph admonition block.
+
+It can contain lists, code, and other blocks.
+====
+.....
+
+Admonition captions can often be customized through attributes in Asciidoctor, but that is implementation-specific.
+
+== Delimited blocks
+
+Delimited blocks are one of the core mechanisms in AsciiDoc.
+
+[cols="1,1,3"]
+|===
+|Delimiter |Name |Purpose
+
+|`----`
+|listing or source
+|Verbatim text, code, or terminal output
+
+|`....`
+|literal
+|Verbatim text without source semantics
+
+|`====`
+|example
+|Generic boxed example content
+
+|`****`
+|sidebar
+|Sidebar or aside content
+
+|`____`
+|quote
+|Long quotations or verse-style content
+
+|`++++`
+|pass
+|Raw backend content or passthrough
+
+|`--`
+|open
+|Generic container block
+
+|`////`
+|comment
+|Hidden content
+|===
+
+=== Block titles
+
+A block title is a line beginning with `.` directly above the block.
+
+.....
+.Sample output
+----
+Hello, world.
+----
+.....
+
+=== Example block
+
+.....
+.An example block
+====
+This content is grouped as an example.
+====
+.....
+
+=== Sidebar block
+
+.....
+.Optional background
+****
+A sidebar is visually separate from the main flow.
+****
+.....
+
+=== Quote block
+
+.....
+[quote, Grace Hopper, Interview]
+____
+The most dangerous phrase in the language is,
+"We've always done it this way."
+____
+.....
+
+=== Verse block
+
+.....
+[verse, Author Name, Work Title]
+____
+First line
+Second line
+Third line
+____
+.....
+
+=== Listing block
+
+.....
+----
+verbatim text
+with spaces preserved
+----
+.....
+
+=== Source block
+
+.....
+[source,python]
+----
+def greet(name: str) -> None:
+    print(f"Hello, {name}")
+----
+.....
+
+Useful options:
+
+.....
+[source,java,linenums]
+----
+class Main {}
+----
+
+[source,python,subs=+attributes]
+----
+print("{project-name}")
+----
+.....
+
+=== Literal block
+
+.....
+....
+Literal content
+is preserved exactly.
+....
+.....
+
+=== Open block
+
+.....
+[abstract]
+--
+This open block is styled as an abstract.
+--
+.....
+
+=== Passthrough block
+
+.....
+++++
+<div class="custom">Raw HTML for HTML backends</div>
+++++
+.....
+
+Use passthrough sparingly because it reduces portability.
+
+== Block styles and semantics
+
+The delimiter identifies the block family.
+The style refines its meaning.
+
+.....
+[quote]
+____
+Quoted text
+____
+
+[verse]
+____
+Poetic text
+____
+
+[source,ruby]
+----
+puts 'hello'
+----
+.....
+
+== Substitutions
+
+AsciiDoc transforms content through substitution groups such as:
+
+* special characters
+* quote replacements
+* attributes
+* macros
+* post replacements
+
+The active substitutions depend on context.
+Normal paragraphs expand attributes and macros.
+Literal-style contexts typically do not.
+Passthrough contexts suppress most or all normal substitutions.
+
+=== Custom substitutions on a block
+
+.....
+[subs="attributes,macros"]
+++++
+Content with a custom substitution pipeline.
+++++
+.....
+
+A common source-block pattern:
+
+.....
+[source,xml,subs=+attributes]
+----
+<service name="{project-name}"/>
+----
+.....
+
+Use custom substitution pipelines only when necessary.
+They are powerful but easy to misuse.
+
+== Includes
+
+=== Basic include
+
+....
+include::partial/intro.adoc[]
+....
+
+=== Include with level offset
+
+....
+include::chapters/install.adoc[leveloffset=+1]
+....
+
+=== Tagged includes
+
+File with tags:
+
+....
+// tag::summary[]
+This is the summary.
+// end::summary[]
+....
+
+Parent file:
+
+....
+include::partials/overview.adoc[tag=summary]
+....
+
+=== Include line ranges
+
+....
+include::example.py[lines=1..10]
+....
+
+=== Include safety
+
+Include behavior is often restricted by safe mode, base directory, or hosted-renderer policy.
+If an include works locally but not in CI or a portal, safe-mode restrictions are a likely cause.
+
+== Conditionals
+
+Conditionals are widely used in Asciidoctor to target multiple outputs from one source.
+
+=== ifdef and ifndef
+
+.....
+ifdef::backend-html5[]
+This appears only in HTML5 output.
+endif::[]
+
+ifndef::env-github[]
+This appears outside GitHub rendering.
+endif::[]
+.....
+
+=== ifeval
+
+.....
+:edition: enterprise
+
+ifeval::["{edition}" == "enterprise"]
+Enterprise-only content.
+endif::[]
+.....
+
+Conditionals increase maintenance cost.
+Use them where source reuse is worth the complexity.
+
+== Images and media
+
+=== Block images
+
+....
+image::architecture.png[Architecture diagram]
+image::architecture.png[Architecture diagram, width=800, align=center]
+....
+
+=== Inline image macro
+
+....
+See image:check.svg[checkmark,16,16] beside the label.
+....
+
+=== Images directory
+
+....
+:imagesdir: images
+
+image::logo.png[Logo]
+....
+
+=== Roles, IDs, and links on images
+
+....
+[#system-arch.thumb]
+image::architecture.png[Architecture,link=https://example.com/architecture]
+....
+
+=== Audio and video
+
+Support varies by backend, but common Asciidoctor forms include:
+
+....
+audio::intro.mp3[]
+video::demo.mp4[]
+video::dQw4w9WgXcQ[youtube]
+....
+
+Always test multimedia in the exact publishing pipeline you use.
+
+== Source code features
+
+=== Syntax highlighting
+
+Typical `source-highlighter` values in Asciidoctor include `rouge`, `pygments`, and `highlight.js`.
+Availability depends on runtime and installed integrations.
+
+.....
+:source-highlighter: rouge
+
+[source,javascript]
+----
+console.log('hello')
+----
+.....
+
+=== Line numbers
+
+.....
+[source,python,linenums]
+----
+print("hello")
+----
+.....
+
+=== Callouts
+
+.....
+[source,python]
+----
+def divide(a, b):
+    return a / b  # <1>
+----
+<1> This raises an exception if `b` is zero.
+.....
+
+Callouts are commonly used in source or listing examples and are supported well in Asciidoctor workflows.
+
+== Tables
+
+Tables are among the richest parts of AsciiDoc.
+
+=== Basic table
+
+....
+|===
+|Name |Role
+
+|Ada
+|Mathematician
+
+|Grace
+|Computer scientist
+|===
+....
+
+=== Column specifications
+
+....
+[cols="1,2,3"]
+|===
+|A |B |C
+|1 |2 |3
+|===
+....
+
+=== Header row option
+
+....
+[options="header"]
+|===
+|Column |Meaning
+|ID |Stable identifier
+|Role |Semantic class
+|===
+....
+
+=== CSV or DSV table input
+
+....
+[format=csv,options="header"]
+|===
+Name,Role
+Ada,Mathematician
+Grace,Computer scientist
+|===
+....
+
+External file include:
+
+....
+[%header,format=csv]
+|===
+include::people.csv[]
+|===
+....
+
+=== Spans and cell styles
+
+....
+|===
+|Normal |Cell
+
+2+|This cell spans two columns
+
+.2+|This cell spans two rows
+|Right side row 1
+|Right side row 2
+|===
+....
+
+Cell styles:
+
+....
+|===
+a|This cell contains AsciiDoc.
+
+* list item
+* another item
+
+l|Literal text in this cell
+|===
+....
+
+The `a|` style is the key to nested AsciiDoc content inside a table cell.
+
+== Footnotes
+
+Basic form:
+
+....
+A statement with a footnote.footnote:[This is the footnote text.]
+....
+
+Reuse by ID is supported in some processors and versions:
+
+....
+First reference.footnote:id1[Shared note]
+Second reference.footnoteref:[id1]
+....
+
+== Bibliography and references
+
+A simple bibliography section:
+
+....
+[bibliography]
+== References
+
+* [[[knuth1984]]] Donald Knuth. _The TeXbook_. Addison-Wesley, 1984.
+....
+
+Reference it:
+
+....
+See <<knuth1984>>.
+....
+
+Rich scholarly citation workflows often use extensions or external tooling.
+
+== Glossary
+
+A glossary often uses a styled section and description-list-like entries.
+
+....
+[glossary]
+== Glossary
+
+Service mesh:: Infrastructure layer for service-to-service communication.
+Idempotency:: Property where repeated execution has the same effect.
+....
+
+== Index terms
+
+Common forms in Asciidoctor publishing workflows:
+
+....
+indexterm:[microservices]
+indexterm2:[distributed systems]
+((event sourcing))
+(((bounded context,domain-driven design)))
+....
+
+Index generation depends on backend support.
+
+== Quotes and attributions
+
+For long quotations, prefer a quote block with attribution:
+
+.....
+[quote, Ursula K. Le Guin, Speech]
+____
+Freedom is a heavy load, a great and strange burden for the spirit to undertake.
+____
+.....
+
+== Breaks and separators
+
+=== Thematic break
+
+....
+'''
+....
+
+=== Page break
+
+Usually meaningful only in paged outputs such as PDF:
+
+....
+<<<
+....
+
+== Passthroughs
+
+Passthrough suppresses normal substitutions.
+It is useful for raw backend markup or delicate inline text.
+
+=== Inline passthroughs
+
+....
+pass:[<u>raw inline HTML</u>]
++<b>raw passthrough text</b>+
+`+literal text with special characters+`
+....
+
+=== Block passthrough
+
+.....
+++++
+<script>
+console.log('backend-specific');
+</script>
+++++
+.....
+
+Passthrough content is inherently backend-specific.
+
+== STEM and mathematics
+
+Math support is typically implementation-specific.
+Asciidoctor commonly supports STEM macros when configured appropriately.
+
+.....
+:stem:
+
+stem:[E = mc^2]
+
+[stem]
+++++
+\int_0^1 x^2 dx = \frac{1}{3}
+++++
+.....
+
+Rendering may use MathJax, KaTeX, or a PDF-native path depending on the backend.
+
+== Document types
+
+=== Article
+
+....
+:doctype: article
+....
+
+=== Book
+
+....
+:doctype: book
+....
+
+Book-like workflows may recognize special sections such as preface, part, chapter, appendix, glossary, bibliography, and index.
+
+=== Manpage
+
+....
+= mycmd(1)
+:doctype: manpage
+:manmanual: My Project Manual
+:mansource: My Project 2.0
+
+== Name
+
+mycmd - does useful work
+....
+
+Manpage output is specialized and should be tested independently of HTML or PDF builds.
+
+== Front matter and special sections
+
+Common styled sections in book workflows include:
+
+* `[preface]`
+* `[abstract]`
+* `[appendix]`
+* `[glossary]`
+* `[bibliography]`
+* `[index]`
+* `[colophon]`
+* `[dedication]`
+
+Example:
+
+....
+[abstract]
+== Abstract
+
+This book explains the platform architecture.
+....
+
+Exact semantics depend on doctype and backend.
+
+== Captions, labels, and numbering
+
+Figures, tables, examples, listings, and sections may be captioned or numbered depending on attributes and backend defaults.
+
+Common Asciidoctor caption-related attributes include:
+
+* `figure-caption`
+* `table-caption`
+* `example-caption`
+* `listing-caption`
+
+These are convenient, but they are implementation details rather than universal language guarantees.
+
+== Roles and custom styling hooks
+
+Roles attach semantic names that many backends convert to classes or style hooks.
+
+....
+[.lead]
+This paragraph may be styled as lead text.
+
+[.small]
+A paragraph with a custom role.
+....
+
+Roles are one of the cleanest ways to separate content from presentation.
+
+== Open blocks as semantic containers
+
+Open blocks are useful when a processor or backend recognizes a style name.
+
+....
+[partintro]
+--
+This open block acts as a part introduction.
+--
+....
+
+....
+[abstract]
+--
+This open block acts as an abstract.
+--
+....
+
+== Safe modes and security
+
+Safe modes may restrict:
+
+* include targets
+* URI reading
+* docinfo injection
+* raw content handling
+
+This matters in CI, hosted renderers, and documentation portals.
+If a construct works locally but fails in production, safe mode or sandboxing is a likely explanation.
+
+== Backend-specific behavior
+
+The same source can render differently in HTML, PDF, EPUB, DocBook, or manpage output.
+Common differences include:
+
+* icon rendering
+* syntax highlighting support
+* page breaks
+* multimedia behavior
+* CSS or theme handling
+* index and bibliography generation
+* raw passthrough handling
+
+Always test the exact backend and theme stack that will publish the document.
+
+== GitHub and lightweight renderers
+
+Not all renderers implement full AsciiDoc.
+Hosted platforms may disable or ignore:
+
+* includes
+* custom extensions
+* advanced roles
+* raw HTML or scripts
+* PDF-oriented semantics
+
+For repository READMEs, a conservative subset is usually the safest choice.
+
+== Docinfo and template customization
+
+Asciidoctor can inject custom header or footer fragments through docinfo files in some workflows.
+Typical uses:
+
+* custom CSS or JavaScript
+* analytics snippets
+* metadata injection
+* site-specific wrappers
+
+This is build-layer customization, not core content syntax.
+
+== Extensions and plugins
+
+Modern Asciidoctor supports extensions that can add:
+
+* custom block macros
+* include processors
+* tree processors
+* postprocessors
+* custom syntax handling
+
+Extensions are powerful, but they sharply reduce portability.
+Treat them as platform features, not language basics.
+
+== Content architecture for large docs
+
+For larger documentation systems:
+
+* store reusable fragments in `partials/`
+* use `include::[]` to assemble deliverables
+* expose configuration through attributes
+* isolate backend differences behind conditionals
+* define explicit anchors for stable xrefs
+
+A modular pattern:
+
+....
+= Platform Guide
+:toc:
+
+include::partials/intro.adoc[]
+include::chapters/install.adoc[leveloffset=+1]
+include::chapters/operate.adoc[leveloffset=+1]
+....
+
+== Troubleshooting
+
+=== Formatting did not apply
+
+Check:
+
+. whether the markers are constrained by adjacent word characters
+. whether the text is inside a literal, listing, or passthrough context
+. whether a custom substitution pipeline disabled the relevant substitution group
+
+=== Lists are broken
+
+Most list failures come from:
+
+* missing blank lines
+* missing continuation `+`
+* blocks attached to the wrong list item
+* accidental indentation creating a literal paragraph
+
+=== Includes fail
+
+Likely causes:
+
+* wrong relative path
+* safe-mode restrictions
+* base-directory mismatch
+* hosted renderer with include disabled
+
+=== Xrefs do not resolve
+
+Check:
+
+* the target ID exists
+* the implicit ID is what you think it is
+* the inter-document path is correct
+* the current site generator rewrites xrefs differently
+
+=== Tables look malformed
+
+Check:
+
+* balanced delimiter lines
+* correct `cols` declaration
+* span values that do not exceed table width
+* use of `a|` where nested AsciiDoc is required
+
+== Authoring guidance
+
+=== Prefer explicit syntax
+
+Good:
+
+.....
+[source,yaml]
+----
+name: app
+----
+.....
+
+More fragile:
+
+....
+ name: app
+....
+
+Explicit blocks are easier to maintain than indentation-driven shortcuts.
+
+=== Use explicit IDs for stable links
+
+Implicit IDs change when headings change.
+If links matter, define the IDs yourself.
+
+=== Minimize raw backend markup
+
+Use raw HTML or passthrough only when no higher-level construct works.
+That preserves portability.
+
+=== Centralize configuration in attributes
+
+....
+:product-name: Atlas
+:product-version: 3.2
+....
+
+Then reference them consistently:
+
+....
+Welcome to {product-name} {product-version}.
+....
+
+=== Keep include graphs understandable
+
+Modularity is good.
+Deeply nested include hierarchies are difficult to debug.
+
+== Practical patterns
+
+=== Reusable warning text
+
+....
+:danger-note: Do not run this command in production.
+
+WARNING: {danger-note}
+....
+
+=== Product-edition filtering
+
+.....
+:edition: community
+
+ifeval::["{edition}" == "enterprise"]
+This feature is available only in enterprise editions.
+endif::[]
+.....
+
+=== Shared code snippets with tagged includes
+
+.....
+[source,python]
+----
+include::snippets/app.py[tag=handler]
+----
+.....
+
+This is one of the best ways to prevent documentation code drift.
+
+=== Admonition inside a list item
+
+.....
+. Stop the service.
++
+[WARNING]
+====
+Do not stop the service during a schema migration.
+====
+. Apply the update.
+.....
+
+== Cheat sheet
+
+=== Inline syntax
+
+[cols="1,2"]
+|===
+|Purpose |Syntax
+
+|Bold
+|`*text*`
+
+|Italic
+|`_text_`
+
+|Monospace
+|`` `text` ``
+
+|Superscript
+|`^text^`
+
+|Subscript
+|`~text~`
+
+|Link
+|`link:https://example.com[Label]`
+
+|Cross-reference
+|`<<id,label>>`
+
+|Footnote
+|`footnote:[text]`
+
+|Keyboard macro
+|`kbd:[Ctrl+C]`
+|===
+
+=== Block syntax
+
+[cols="1,2"]
+|===
+|Purpose |Syntax
+
+|Section
+|`== Title`
+
+|Unordered list
+|`* item`
+
+|Ordered list
+|`. item`
+
+|Description list
+|`term:: definition`
+
+|Source block
+|`[source,lang]` plus `----`
+
+|Literal block
+|`....`
+
+|Example block
+|`====`
+
+|Sidebar block
+|`****`
+
+|Quote block
+|`____`
+
+|Open block
+|`--`
+
+|Passthrough block
+|`++++`
+
+|Comment block
+|`////`
+
+|Table
+|`|===`
+|===
+
+== Full sample document
+
+.....
+= Sample Operations Guide
+Jane Doe <jane@example.com>
+:toc:
+:sectnums:
+:source-highlighter: rouge
+:imagesdir: images
+:product-name: Atlas
+:experimental:
+
+[abstract]
+== Abstract
+
+This guide explains how to operate {product-name}.
+
+== Overview
+
+The user opens menu:Admin[Cluster, Status] and clicks btn:[Refresh].
+
+NOTE: Ensure the control plane is healthy before maintenance.
+
+[[install]]
+== Installation
+
+. Download the package.
+. Verify the checksum.
++
+[source,bash]
+----
+sha256sum atlas.tar.gz  # <1>
+----
+<1> Compare the output with the published checksum.
+. Extract the archive.
+
+== Configuration
+
+[source,yaml]
+----
+service:
+  name: {product-name}
+  replicas: 3
+----
+
+image::topology.png[Cluster topology, width=700]
+
+== References
+
+See <<install>> and footnote:[Tested on the 3.x release series.].
+.....
+
+== Portability matrix
+
+[cols="2,1,3"]
+|===
+|Feature |Portability |Notes
+
+|Sections, paragraphs, lists, links, images, tables
+|High
+|Safe across mainstream processors.
+
+|Attributes, includes, conditionals
+|Medium
+|Common, but behavior and policy vary.
+
+|UI macros, STEM, docinfo, extension APIs
+|Lower
+|Often Asciidoctor-specific.
+
+|Raw HTML passthrough
+|Low
+|Highly backend-specific.
+|===
+
+== Final guidance
+
+Use the smallest feature set that accomplishes the publishing goal.
+AsciiDoc scales from simple README files to book-length documentation systems, but maintainability depends on disciplined use of attributes, includes, anchors, and backend-specific features.
+
+When portability matters:
+
+* prefer plain structural syntax
+* avoid raw backend markup
+* define explicit anchors
+* keep conditionals limited and documented
+* test every target backend in CI
+
+When power matters more than portability:
+
+* leverage Asciidoctor attributes and extensions
+* use tagged includes for source reuse
+* theme by backend rather than hardcoding presentation in content
+* treat the document source as part of the build system, not just prose

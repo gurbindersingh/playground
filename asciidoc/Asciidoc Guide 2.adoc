@@ -1,0 +1,1967 @@
+= The Complete AsciiDoc Guide
+:author: AsciiDoc Reference
+:revdate: 2026-03-22
+:toc: left
+:toclevels: 4
+:sectanchors:
+:sectlinks:
+:sectnums:
+:icons: font
+:source-highlighter: highlight.js
+:experimental:
+:tip-caption: 💡 Tip
+:note-caption: 📝 Note
+:warning-caption: ⚠️ Warning
+:important-caption: ❗ Important
+:caution-caption: 🔥 Caution
+
+== Document Header & Metadata
+
+Every AsciiDoc document can begin with a header block that defines the title, author, revision info, and document-wide attributes.
+
+=== Document Title
+
+The document title uses a single `=` sign:
+
+----
+= My Document Title
+----
+
+=== Author & Revision Lines
+
+----
+= Document Title
+Author Name <author@example.com>
+v1.2, 2026-03-22: Final revision
+----
+
+Multiple authors are separated by semicolons:
+
+----
+= Document Title
+First Author <first@example.com>; Second Author <second@example.com>
+----
+
+=== Document Attributes
+
+Attributes are key-value pairs set in the header with `:attribute-name: value`:
+
+----
+= My Document
+:author: Jane Doe
+:email: jane@example.com
+:revnumber: 2.0
+:revdate: 2026-03-22
+:revremark: Major update
+:description: A sample document
+:keywords: asciidoc, guide, reference
+:toc: left
+:sectnums:
+:icons: font
+:imagesdir: ./images
+:source-highlighter: highlight.js
+----
+
+To unset an attribute, use a `!` suffix or prefix:
+
+----
+:sectnums!:
+:!sectnums:
+----
+
+Reference attributes in text with `{attribute-name}`:
+
+----
+This document was written by {author} on {revdate}.
+----
+
+=== Custom Attributes
+
+----
+:project-name: SuperWidget
+:version: 3.4.1
+
+Welcome to {project-name} version {version}.
+----
+
+== Section Titles (Headings)
+
+Sections are defined by the number of `=` signs. AsciiDoc supports six heading levels:
+
+----
+= Document Title (Level 0)
+
+== Level 1 Section
+
+=== Level 2 Section
+
+==== Level 3 Section
+
+===== Level 4 Section
+
+====== Level 5 Section
+----
+
+=== Discrete Headings
+
+A discrete heading is not part of the section hierarchy:
+
+----
+[discrete]
+== This Heading Won't Appear in the TOC
+----
+
+=== Custom Section IDs
+
+----
+[#my-custom-id]
+== Section with Custom ID
+
+Link to it: <<my-custom-id,click here>>
+----
+
+== Paragraphs
+
+Paragraphs are simply blocks of text separated by blank lines.
+
+----
+This is the first paragraph.
+
+This is the second paragraph.
+Adjacent lines are joined
+into a single paragraph.
+----
+
+=== Line Breaks
+
+A hard line break within a paragraph uses `+` at the end of the line:
+
+----
+First line +
+Second line +
+Third line
+----
+
+Or set the `hardbreaks` option on a paragraph:
+
+----
+[%hardbreaks]
+First line
+Second line
+Third line
+----
+
+To enable document-wide hard line breaks:
+
+----
+:hardbreaks-option:
+----
+
+=== Lead Paragraph
+
+----
+[.lead]
+This paragraph will be rendered with a larger font as an introductory paragraph.
+----
+
+== Text Formatting
+
+=== Inline Formatting
+
+[cols="2,3", options="header"]
+|===
+| Syntax | Result
+
+| `+*bold*+`
+| *bold*
+
+| `+_italic_+`
+| _italic_
+
+| `+*_bold italic_*+`
+| *_bold italic_*
+
+| `+` `monospace` `+`
+| `monospace`
+
+| `+*`bold monospace`*+`
+| *`bold monospace`*
+
+| `+#highlighted#+`
+| #highlighted#
+
+| `+[.underline]#underlined#+`
+| [.underline]#underlined#
+
+| `+[.line-through]#strikethrough#+`
+| [.line-through]#strikethrough#
+
+| `+[.overline]#overlined#+`
+| [.overline]#overlined#
+
+| `+^superscript^+`
+| ^superscript^
+
+| `+~subscript~+`
+| ~subscript~
+
+| `+"`curly quotes`"+`
+| "`curly quotes`"
+|===
+
+=== Constrained vs. Unconstrained
+
+Constrained formatting applies at word boundaries:
+
+----
+A *bold* word.
+----
+
+Unconstrained formatting (doubled markers) applies mid-word:
+
+----
+Fan**tast**ic
+It__al__ics
+----
+
+=== Literal (Passthrough) Inline
+
+Prevent inline substitutions with a passthrough:
+
+----
++This *text* is not formatted+
+----
+
+Or use the inline passthrough macro:
+
+----
+pass:[This <em>text</em> is passed through as-is]
+----
+
+=== Custom Roles
+
+----
+[.custom-role]#text with a custom CSS class#
+----
+
+== Lists
+
+=== Unordered Lists
+
+----
+* Item 1
+* Item 2
+** Nested item 2a
+** Nested item 2b
+*** Deeply nested
+* Item 3
+----
+
+Alternative markers for visual distinction:
+
+----
+- Item 1
+- Item 2
+----
+
+=== Ordered Lists
+
+----
+. First item
+. Second item
+.. Nested item a
+.. Nested item b
+... Deeply nested
+. Third item
+----
+
+Explicit numbering styles:
+
+----
+[arabic]
+. One
+. Two
+
+[loweralpha]
+. a
+. b
+
+[upperalpha]
+. A
+. B
+
+[lowerroman]
+. i
+. ii
+
+[upperroman]
+. I
+. II
+----
+
+=== Starting Number
+
+----
+[start=5]
+. This starts at 5
+. This is 6
+----
+
+=== Reversed Lists
+
+----
+[%reversed]
+. Third
+. Second
+. First
+----
+
+=== Checklist (Task List)
+
+----
+* [*] Completed task
+* [x] Also completed
+* [ ] Incomplete task
+* Normal list item
+----
+
+=== Description Lists (Definition Lists)
+
+----
+Term 1:: Definition 1
+Term 2:: Definition 2
+Term 3::
+  A longer definition
+  that spans multiple lines.
+
+Nested Term::: Nested definition
+----
+
+Horizontal layout:
+
+----
+[horizontal]
+CPU:: Central Processing Unit
+RAM:: Random Access Memory
+SSD:: Solid State Drive
+----
+
+=== Question & Answer Lists
+
+----
+[qanda]
+What is AsciiDoc?:: A text document format for writing documentation.
+Why use it?:: It's simple, powerful, and converts to many formats.
+----
+
+=== Mixed Lists
+
+----
+Operating Systems::
+  * Linux
+  * macOS
+  * Windows
+Editors::
+  . VS Code
+  . Vim
+  . Emacs
+----
+
+=== List Continuation
+
+Use `+` on a line by itself to attach additional blocks to a list item:
+
+----
+* Item one
++
+This paragraph belongs to item one.
++
+----
+This code block also belongs to item one.
+----
+
+* Item two
+----
+
+Or use an open block for complex content:
+
+----
+* Item with complex content
++
+--
+This paragraph is inside the list item.
+
+Another paragraph still in the same list item.
+
+ $ command-example
+--
+----
+
+== Links and Cross-References
+
+=== External Links
+
+----
+https://example.com
+
+https://example.com[Example Site]
+
+https://example.com[Example Site^] (opens in new tab)
+
+link:https://example.com[Example Site, window=_blank]
+----
+
+=== Email Links
+
+----
+mailto:hello@example.com[]
+
+mailto:hello@example.com[Send an email]
+
+mailto:hello@example.com[Email, subject="Hello", body="Hi there"]
+----
+
+=== Relative File Links
+
+----
+link:report.pdf[Download the report]
+
+link:../other-doc.html[Related document]
+----
+
+=== Cross-References (Internal)
+
+----
+<<section-id>>
+
+<<section-id, Custom link text>>
+
+xref:section-id[Custom link text]
+----
+
+=== Inter-Document Cross-References
+
+----
+xref:other-document.adoc#section-id[Link text]
+----
+
+=== Anchors
+
+----
+[[custom-anchor]]
+This paragraph has an anchor.
+
+[#another-anchor]
+== Section with Anchor
+
+Inline anchor: [[inline-id]]text with anchor
+----
+
+=== Link Attributes
+
+----
+https://example.com[Example, role="external", window="_blank"]
+----
+
+== Images
+
+=== Block Images
+
+----
+image::sunset.jpg[]
+
+image::sunset.jpg[A beautiful sunset]
+
+image::sunset.jpg[Sunset, 300, 200]
+
+image::sunset.jpg[alt=Sunset, width=300, height=200]
+----
+
+=== Inline Images
+
+----
+Click the image:icon.png[icon, 16, 16] button to continue.
+----
+
+=== Image Attributes
+
+----
+image::photo.jpg[Photo, width=400, link=https://example.com]
+
+[#img-diagram]
+.Architecture Diagram
+image::architecture.png[Architecture, 600, align=center, float=right]
+----
+
+=== Image Directory
+
+Set the images directory in the header:
+
+----
+:imagesdir: ./images
+
+image::photo.jpg[]  <-- resolves to ./images/photo.jpg
+----
+
+=== SVG Images
+
+----
+image::diagram.svg[opts=inline]
+
+image::diagram.svg[opts=interactive]
+----
+
+== Blocks
+
+=== Sidebar Block
+
+----
+****
+This is a sidebar block.
+
+It can contain any content.
+****
+----
+
+=== Example Block
+
+----
+====
+This is an example block.
+====
+----
+
+=== Literal Block
+
+----
+....
+This is a literal block.
+  Whitespace is preserved.
+    No *formatting* applied.
+....
+----
+
+Or indent by one or more spaces:
+
+----
+ This line is literal because it starts with a space.
+----
+
+=== Listing Block
+
+----
+----
+This is a listing block (code).
+Whitespace is preserved.
+No formatting applied.
+----
+----
+
+=== Passthrough Block
+
+----
+++++
+<div class="custom-html">
+  <p>Raw HTML passed through to output.</p>
+</div>
+++++
+----
+
+=== Open Block
+
+An open block has no default styling and is often used as a container:
+
+----
+--
+This is an open block.
+It can hold any content.
+--
+----
+
+=== Quote Block
+
+----
+[quote, Albert Einstein, On Science]
+____
+Imagination is more important than knowledge.
+____
+----
+
+Short form (Markdown-style):
+
+----
+> To be or not to be,
+> that is the question.
+> -- William Shakespeare, Hamlet
+----
+
+=== Verse Block
+
+Preserves line breaks:
+
+----
+[verse, Carl Sandburg, Fog]
+____
+The fog comes
+on little cat feet.
+____
+----
+
+=== Comment Block
+
+----
+////
+This entire block is a comment.
+It will not appear in the output.
+////
+----
+
+Single-line comment:
+
+----
+// This line is a comment and will not appear in output.
+----
+
+=== Collapsible Block (HTML only)
+
+----
+[%collapsible]
+====
+This content is hidden by default and can be expanded.
+====
+----
+
+With a summary:
+
+----
+.Click to reveal
+[%collapsible]
+====
+Hidden content here.
+====
+----
+
+== Admonitions
+
+=== Basic Admonitions
+
+----
+NOTE: This is a note.
+
+TIP: This is a tip.
+
+IMPORTANT: This is important.
+
+WARNING: This is a warning.
+
+CAUTION: Use caution here.
+----
+
+=== Block Admonitions
+
+----
+[NOTE]
+====
+This is a note block.
+
+It can contain multiple paragraphs, lists, and other blocks.
+
+* Item one
+* Item two
+====
+----
+
+=== Admonition with Icon
+
+Enable font-based icons:
+
+----
+:icons: font
+----
+
+Or image-based icons:
+
+----
+:icons: image
+:iconsdir: ./icons
+----
+
+== Tables
+
+=== Basic Table
+
+----
+|===
+| Column 1 | Column 2 | Column 3
+
+| Cell 1a
+| Cell 1b
+| Cell 1c
+
+| Cell 2a
+| Cell 2b
+| Cell 2c
+|===
+----
+
+=== Table with Header
+
+----
+[cols="1,1,1", options="header"]
+|===
+| Name | Age | City
+| Alice | 30 | London
+| Bob | 25 | Paris
+|===
+----
+
+The first row is automatically a header if followed by a blank line:
+
+----
+|===
+| Name | Age | City
+
+| Alice | 30 | London
+| Bob | 25 | Paris
+|===
+----
+
+=== Column Formatting
+
+----
+[cols="2,1,3"]
+|===
+| Wide column | Narrow | Widest column
+| content | content | content
+|===
+----
+
+Column alignment:
+
+----
+[cols="<,^,>"]
+|===
+| Left | Center | Right
+| aligned | aligned | aligned
+|===
+----
+
+Column styles:
+
+----
+[cols="1h,2,2"]
+|===
+| Header col | Normal | Normal
+| Row header | data | data
+|===
+----
+
+Full column specifiers:
+
+----
+[cols="1,2a,1e,1m,1s,1l"]
+|===
+| Default | AsciiDoc | Emphasis | Mono | Strong | Literal
+|===
+----
+
+* `a` = AsciiDoc (process content as AsciiDoc)
+* `e` = emphasis (italic)
+* `m` = monospace
+* `s` = strong (bold)
+* `l` = literal
+* `h` = header style
+
+=== Cell Spanning
+
+Column span:
+
+----
+|===
+| Col 1 | Col 2 | Col 3
+
+3+| This cell spans 3 columns
+
+| A | B | C
+|===
+----
+
+Row span:
+
+----
+|===
+| Col 1 | Col 2
+
+.2+| Spans 2 rows
+| Row 1 Col 2
+| Row 2 Col 2
+|===
+----
+
+Both:
+
+----
+|===
+| Col 1 | Col 2 | Col 3
+
+2.3+| Spans 2 cols and 3 rows
+| B
+| C
+| D
+|===
+----
+
+=== Cell-Level Formatting
+
+----
+|===
+| Normal | Aligned
+
+>| Right-aligned cell
+^| Centered cell
+
+e| Emphasized cell
+m| Monospace cell
+s| Strong cell
+a| *AsciiDoc* processed cell
+|===
+----
+
+=== AsciiDoc Content in Cells
+
+With the `a` column specifier or cell prefix:
+
+----
+[cols="1,1a"]
+|===
+| Plain cell
+| * List in cell
+* Second item
+* Third item
+|===
+----
+
+=== Table with Footer
+
+----
+[options="header,footer"]
+|===
+| Item | Price
+| Widget | $10
+| Gadget | $20
+| *Total* | *$30*
+|===
+----
+
+=== Table Width
+
+----
+[width="75%"]
+|===
+| Narrow Table | Content
+|===
+----
+
+=== CSV and DSV Tables
+
+----
+[format="csv", options="header"]
+|===
+Name,Age,City
+Alice,30,London
+Bob,25,Paris
+|===
+----
+
+----
+[format="dsv", options="header"]
+|===
+Name:Age:City
+Alice:30:London
+Bob:25:Paris
+|===
+----
+
+=== Include CSV File
+
+----
+[format="csv", options="header"]
+|===
+\include::data.csv[]
+|===
+----
+
+=== Nested Tables
+
+Use `!===` for the inner table:
+
+----
+[cols="1,2a"]
+|===
+| Outer cell
+|
+!===
+! Inner A ! Inner B
+! 1 ! 2
+!===
+|===
+----
+
+=== Grid and Frame
+
+----
+[frame="none", grid="none"]
+|===
+| No borders | at all
+|===
+
+[frame="sides", grid="rows"]
+|===
+| Side frame | row grid
+| only | only
+|===
+----
+
+Frame options: `all` (default), `topbot`, `sides`, `none`
+
+Grid options: `all` (default), `cols`, `rows`, `none`
+
+=== Striped Rows
+
+----
+[stripes=even]
+|===
+| A | B
+| C | D
+| E | F
+|===
+----
+
+Options: `even`, `odd`, `all`, `hover`, `none`
+
+=== Table Caption
+
+----
+.Sales Data for Q1
+|===
+| Month | Revenue
+| Jan | $100K
+| Feb | $120K
+| Mar | $115K
+|===
+----
+
+== Source Code
+
+=== Inline Code
+
+----
+Use the `print()` function.
+----
+
+=== Code Block
+
+----
+[source,python]
+----
+def hello(name):
+    print(f"Hello, {name}!")
+
+hello("World")
+----
+----
+
+=== Syntax Highlighting
+
+Set the highlighter in the document header:
+
+----
+:source-highlighter: highlight.js
+----
+
+Available highlighters: `highlight.js`, `rouge`, `coderay`, `pygments`
+
+=== Code with Callouts
+
+----
+[source,java]
+----
+public class Hello {
+    public static void main(String[] args) {
+        System.out.println("Hello!"); // <1>
+    }
+}
+----
+<1> Prints greeting to standard output
+----
+
+=== Code with Title
+
+----
+.app.py
+[source,python]
+----
+from flask import Flask
+app = Flask(__name__)
+----
+----
+
+=== Code from File (Include)
+
+----
+[source,ruby]
+----
+\include::app.rb[]
+----
+----
+
+Partial includes with tags:
+
+----
+[source,java]
+----
+\include::Example.java[tag=main]
+----
+----
+
+In the source file:
+
+----
+// tag::main[]
+public static void main(String[] args) {
+    System.out.println("Hello");
+}
+// end::main[]
+----
+
+Or by line numbers:
+
+----
+[source,python]
+----
+\include::script.py[lines=5..10]
+----
+----
+
+=== Subs on Code Blocks
+
+Enable attribute substitution in code:
+
+----
+[source,xml,subs="attributes"]
+----
+<version>{project-version}</version>
+----
+----
+
+=== Linenums
+
+----
+[source,python,linenums]
+----
+import os
+import sys
+
+def main():
+    pass
+----
+----
+
+== Includes
+
+=== Basic Include
+
+----
+\include::chapter1.adoc[]
+----
+
+=== Partial Include (by line)
+
+----
+\include::data.adoc[lines=1..10]
+
+\include::data.adoc[lines="1..5;10..15;20..-1"]
+----
+
+=== Partial Include (by tag)
+
+----
+\include::code.py[tag=setup]
+
+\include::code.py[tags="setup;teardown"]
+----
+
+=== Include with Level Offset
+
+Adjust heading levels of included content:
+
+----
+\include::chapter.adoc[leveloffset=+1]
+----
+
+=== Include from URL
+
+----
+\include::https://raw.githubusercontent.com/user/repo/main/README.adoc[]
+----
+
+=== Optional Include
+
+----
+\include::optional-file.adoc[opts=optional]
+----
+
+=== Indent
+
+----
+\include::code.py[indent=4]
+----
+
+== Macros
+
+=== Block Macros
+
+----
+image::photo.jpg[Caption]
+
+video::video.mp4[width=640]
+
+audio::podcast.mp3[]
+
+toc::[]
+----
+
+=== Inline Macros
+
+----
+image:icon.png[Icon, 16, 16]
+
+link:https://example.com[Example]
+
+mailto:user@example.com[Email Us]
+
+icon:heart[role=red]  (requires :icons: font)
+
+pass:[raw <b>HTML</b>]
+
+btn:[OK]  (requires :experimental:)
+
+kbd:[Ctrl+C]  (requires :experimental:)
+
+menu:File[Save As... > PDF]  (requires :experimental:)
+----
+
+=== Keyboard, Button, and Menu Macros
+
+Requires `:experimental:` attribute:
+
+----
+:experimental:
+
+Press kbd:[Ctrl+Alt+Delete] to open Task Manager.
+
+Click btn:[Submit] to save your changes.
+
+Select menu:View[Zoom > Fit Width].
+----
+
+== Substitutions
+
+=== Substitution Types
+
+[cols="1,2", options="header"]
+|===
+| Name | Description
+| `specialcharacters` | Escapes `<`, `>`, `&`
+| `attributes` | Replaces `{attribute}` references
+| `quotes` | Applies text formatting (`*bold*`, `_italic_`, etc.)
+| `replacements` | Typographic replacements (arrows, dashes, etc.)
+| `macros` | Processes macros
+| `post_replacements` | Hard line breaks (`+`)
+|===
+
+=== Controlling Substitutions
+
+----
+[subs="attributes,quotes"]
+----
+Version: {version}
+This is *bold*.
+----
+----
+
+Incremental modifications:
+
+----
+[subs="+attributes"]   <-- add to defaults
+[subs="-quotes"]       <-- remove from defaults
+----
+
+=== Built-in Replacements
+
+[cols="2,1", options="header"]
+|===
+| Syntax | Result
+
+| `+--+` (surrounded by spaces or line start/end)
+| — (em dash)
+
+| `+(C)+`
+| ©
+
+| `+(R)+`
+| ®
+
+| `+(TM)+`
+| ™
+
+| `+->+`
+| →
+
+| `+<-+`
+| ←
+
+| `+=>+`
+| ⇒
+
+| `+<=+`
+| ⇐
+
+| `+...+`
+| …
+
+| `+Sam's+`
+| Sam's (curly apostrophe)
+|===
+
+== Conditional Directives
+
+=== ifdef / ifndef
+
+----
+\ifdef::backend-html5[]
+This content only appears in HTML output.
+\endif::[]
+
+\ifndef::production[]
+DRAFT — not for distribution.
+\endif::[]
+----
+
+=== ifeval
+
+----
+\ifeval::[{sectnums} == true]
+Section numbers are enabled.
+\endif::[]
+
+\ifeval::["{backend}" == "html5"]
+HTML-specific content.
+\endif::[]
+----
+
+Operators: `==`, `!=`, `<`, `>`, `<=`, `>=`
+
+=== ifdef with Multiple Attributes
+
+----
+\ifdef::attr1,attr2[]     <-- OR: either attribute set
+Content shown if attr1 OR attr2 is defined.
+\endif::[]
+
+\ifdef::attr1+attr2[]     <-- AND: both attributes set
+Content shown if attr1 AND attr2 are both defined.
+\endif::[]
+----
+
+== Table of Contents
+
+=== Placement
+
+----
+:toc:                 <-- default (top of document)
+:toc: left            <-- left sidebar (HTML)
+:toc: right           <-- right sidebar (HTML)
+:toc: preamble        <-- after the preamble
+:toc: macro           <-- manual placement with toc::[]
+----
+
+=== Depth
+
+----
+:toclevels: 4         <-- show up to 4 levels (default 2)
+----
+
+=== Title
+
+----
+:toc-title: Table of Contents
+----
+
+=== Manual Placement
+
+----
+:toc: macro
+
+Preamble text here.
+
+toc::[]
+
+== First Section
+----
+
+== Footnotes
+
+=== Inline Footnote
+
+----
+This statement needs clarification.footnote:[This is the footnote text.]
+----
+
+=== Reusable Footnote
+
+----
+First reference.footnote:myid[This is a reusable footnote.]
+
+Second reference to the same note.footnote:myid[]
+----
+
+== Bibliography
+
+=== Bibliography References
+
+----
+The study by Smith footnote:[Smith, J. (2024). _AsciiDoc Research_. Publisher.] found that...
+
+Or using bibliography anchors:
+
+This was proven in <<smith2024>>.
+
+[bibliography]
+== References
+
+* [[[smith2024]]] Smith, J. (2024). _AsciiDoc Research_. Publisher.
+* [[[doe2023]]] Doe, A. (2023). _Writing with AsciiDoc_. Publisher.
+----
+
+== Indexes
+
+----
+This section covers ((AsciiDoc)) features.
+
+Invisible index term: (((AsciiDoc, features, overview)))
+
+The ((("primary", "secondary", "tertiary"))) index entry.
+----
+
+== Counters
+
+----
+[caption=""]
+.Table {counter:table-num}: Sales Data
+|===
+| Month | Revenue
+|===
+
+.Table {counter:table-num}: Expense Data
+|===
+| Month | Expense
+|===
+
+Item {counter:item-count}
+Item {counter:item-count}
+Item {counter:item-count}
+----
+
+The counter auto-increments each time it's referenced. Use `{counter2:name}` to increment without displaying.
+
+== Breaks
+
+=== Page Break
+
+----
+<<<
+----
+
+=== Thematic Break (Horizontal Rule)
+
+----
+'''
+----
+
+Or:
+
+----
+---
+----
+
+== Mathematical Formulas
+
+=== STEM Support
+
+Enable in the header:
+
+----
+:stem: latexmath
+----
+
+Or for AsciiMath:
+
+----
+:stem: asciimath
+----
+
+=== Inline Math
+
+----
+The solution is stem:[x = {-b \pm \sqrt{b^2 - 4ac}} / {2a}].
+----
+
+=== Block Math
+
+----
+[stem]
+++++
+\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
+++++
+----
+
+=== Specific Notation
+
+----
+latexmath:[C = \alpha + \beta Y^{\gamma}]
+
+asciimath:[sum_(i=1)^n i^3 = ((n(n+1))/2)^2]
+----
+
+== UI Macros (Experimental)
+
+Requires `:experimental:` attribute.
+
+----
+:experimental:
+
+Press kbd:[Ctrl+S] to save.
+
+Click btn:[OK] to confirm.
+
+Navigate to menu:File[Export > PDF].
+----
+
+== Icons
+
+=== Font-Based Icons
+
+----
+:icons: font
+
+icon:heart[] icon:github[] icon:warning[]
+
+icon:heart[size=2x, role=red]
+
+icon:tags[flip=horizontal, rotate=90]
+----
+
+=== Image-Based Icons
+
+----
+:icons: image
+:iconsdir: ./icons
+----
+
+== Document Conversion Attributes
+
+=== Backend Selection
+
+----
+:backend: html5
+:backend: docbook5
+:backend: manpage
+----
+
+=== Common Attributes
+
+----
+:data-uri:           <-- embed images as data URIs
+:allow-uri-read:     <-- allow including from URLs
+:nofooter:           <-- suppress footer
+:noheader:           <-- suppress header
+:nofootnotes:        <-- suppress footnotes section
+:showtitle:          <-- show document title (embedded mode)
+:webfonts:           <-- load web fonts (Google Fonts)
+:stylesheet: custom.css  <-- custom CSS
+:linkcss:            <-- link CSS instead of embedding
+:copycss:            <-- copy CSS to output dir
+:max-width: 900px    <-- content max width
+:partnums:           <-- number parts
+:fragment:           <-- suppress enclosing elements
+----
+
+== Multi-Part Documents
+
+=== Parts
+
+----
+= Book Title
+
+[partintro]
+--
+Introduction to Part I.
+--
+
+= Part I: Getting Started
+
+== Chapter 1
+
+Content here.
+
+= Part II: Advanced Topics
+
+== Chapter 5
+
+Content here.
+----
+
+Parts use level-0 (`=`) headings in multi-part book structure.
+
+=== Preamble
+
+Content between the document header and the first section:
+
+----
+= Document Title
+
+This is the preamble. It appears before the first section.
+
+== First Section
+----
+
+=== Appendix
+
+----
+[appendix]
+== Additional Resources
+
+This section will be labeled as an appendix (e.g., "Appendix A").
+----
+
+=== Glossary
+
+----
+[glossary]
+== Terms and Definitions
+
+[glossary]
+AsciiDoc:: A lightweight markup language.
+Asciidoctor:: A fast AsciiDoc processor.
+----
+
+=== Colophon
+
+----
+[colophon]
+== About This Book
+
+Published by Example Press, 2026.
+----
+
+=== Dedication
+
+----
+[dedication]
+== Dedication
+
+To all documentation writers.
+----
+
+=== Preface
+
+----
+[preface]
+== Preface
+
+Welcome to this guide.
+----
+
+== ID, Roles, and Options
+
+=== Block ID
+
+----
+[#my-block-id]
+This paragraph has a custom ID.
+----
+
+=== Block Role (CSS Class)
+
+----
+[.summary]
+This paragraph has the "summary" role.
+
+[.important.highlight]
+Multiple roles can be applied.
+----
+
+=== Block Options
+
+----
+[%autowidth]
+|===
+| Auto | Width
+|===
+
+[%header%footer]
+|===
+| H1 | H2
+| D1 | D2
+| F1 | F2
+|===
+
+[%collapsible]
+====
+Collapsible content.
+====
+----
+
+=== Combined Shorthand
+
+----
+[#myid.myrole%myoption]
+Content here.
+----
+
+== Escaping
+
+=== Backslash Escaping
+
+----
+\*not bold*
+
+\https://not-a-link.com
+
+\<< not a cross-reference>>
+----
+
+=== Passthrough
+
+Inline:
+
+----
+pass:[*not bold*]
+
++*also not bold*+
+----
+
+Triple-plus (no substitutions at all):
+
+----
++++<u>underlined in HTML</u>+++
+----
+
+Block:
+
+----
+++++
+<div>
+  Raw HTML output.
+</div>
+++++
+----
+
+== Videos and Audio
+
+=== Video
+
+----
+video::video.mp4[]
+
+video::video.mp4[width=640, height=480, start=30, end=60, options="autoplay,loop,nocontrols"]
+
+video::dQw4w9WgXcQ[youtube]
+
+video::12345678[vimeo]
+----
+
+=== Audio
+
+----
+audio::podcast.mp3[]
+
+audio::song.ogg[options="autoplay,loop"]
+----
+
+== Docinfo (Header/Footer Injection)
+
+Include custom HTML in the document head or body:
+
+----
+:docinfo: shared
+----
+
+Create files:
+
+* `docinfo.html` — injected into `<head>`
+* `docinfo-footer.html` — injected before `</body>`
+* `docinfo-header.html` — injected after `<body>` opens (some renderers)
+
+For private (per-document) docinfo:
+
+----
+:docinfo: private
+----
+
+Uses `<docname>-docinfo.html` and `<docname>-docinfo-footer.html`.
+
+== Processing Commands
+
+=== Asciidoctor CLI
+
+----
+# Basic HTML conversion
+asciidoctor document.adoc
+
+# Specify output file
+asciidoctor -o output.html document.adoc
+
+# Specify backend
+asciidoctor -b docbook document.adoc
+
+# Set attributes
+asciidoctor -a toc=left -a sectnums document.adoc
+
+# PDF output (requires asciidoctor-pdf)
+asciidoctor-pdf document.adoc
+
+# EPUB output (requires asciidoctor-epub3)
+asciidoctor-epub3 document.adoc
+
+# Reveal.js slides
+asciidoctor-revealjs presentation.adoc
+
+# Safe mode
+asciidoctor --safe-mode safe document.adoc
+----
+
+=== Safe Modes
+
+[cols="1,2", options="header"]
+|===
+| Mode | Description
+| `unsafe` | No restrictions (default for CLI)
+| `safe` | Disables include and some macros
+| `server` | Like safe, also restricts paths
+| `secure` | Maximum restrictions
+|===
+
+== Extensions and Diagrams
+
+=== Asciidoctor Diagram
+
+Embed diagrams from plain text using asciidoctor-diagram:
+
+----
+[plantuml, diagram-sequence, png]
+....
+@startuml
+Alice -> Bob : Hello
+Bob -> Alice : Hi there!
+@enduml
+....
+----
+
+----
+[ditaa, diagram-boxes]
+....
+    +--------+   +--------+
+    |  cGRE  |-->|  cBLU  |
+    | Green  |   |  Blue  |
+    +--------+   +--------+
+....
+----
+
+----
+[mermaid]
+....
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+....
+----
+
+----
+[graphviz, dot-example, svg]
+....
+digraph G {
+    rankdir=LR
+    A -> B -> C
+    B -> D
+}
+....
+----
+
+=== Other Diagram Types
+
+Asciidoctor-diagram supports many formats: PlantUML, Ditaa, Mermaid, Graphviz, BlockDiag, SeqDiag, ActDiag, NwDiag, Shaape, WaveDrom, Vega, Nomnoml, Svgbob, Symbolator, Syntrax, and more.
+
+== Doctype Variations
+
+----
+:doctype: article     <-- default
+:doctype: book        <-- enables parts, chapters
+:doctype: manpage     <-- UNIX man page format
+:doctype: inline      <-- no enclosing structure
+----
+
+=== Man Page Structure
+
+----
+= command-name(1)
+Author Name
+:doctype: manpage
+:manmanual: Command Manual
+:mansource: Project v1.0
+
+== Name
+
+command-name - brief description
+
+== Synopsis
+
+*command-name* [_OPTIONS_] _FILE_...
+
+== Description
+
+Detailed description.
+
+== Options
+
+*-v, --verbose*::
+Enable verbose output.
+
+*-o, --output* _FILE_::
+Write to FILE.
+----
+
+== Intrinsic Attributes
+
+These are automatically available:
+
+[cols="2,3", options="header"]
+|===
+| Attribute | Description
+| `{docname}` | Document file name (no extension)
+| `{docfilesuffix}` | Document file extension
+| `{docfile}` | Full document file path
+| `{docdir}` | Document directory
+| `{doctitle}` | Document title
+| `{author}` | Author name
+| `{email}` | Author email
+| `{revnumber}` | Revision number
+| `{revdate}` | Revision date
+| `{backend}` | Current backend
+| `{basebackend}` | Base backend (html, docbook, manpage)
+| `{doctype}` | Document type
+| `{localdate}` | Current date
+| `{localtime}` | Current time
+| `{localdatetime}` | Current date and time
+| `{outfilesuffix}` | Output file extension
+| `{sectnums}` | Whether section numbers are enabled
+| `{toc}` | Whether TOC is enabled
+| `{empty}` | Empty string
+| `{sp}` | Single space
+| `{nbsp}` | Non-breaking space
+| `{zwsp}` | Zero-width space
+| `{wj}` | Word joiner
+| `{startsb}` | `[`
+| `{endsb}` | `]`
+| `{vbar}` | `\|`
+| `{caret}` | `^`
+| `{tilde}` | `~`
+| `{backslash}` | `\`
+| `{two-colons}` | `::`
+| `{two-semicolons}` | `;;`
+| `{blank}` | Empty value
+| `{plus}` | `+`
+| `{apostrophe}` | `'`
+| `{deg}` | °
+|===
+
+== Tips and Best Practices
+
+=== One Sentence Per Line
+
+Write each sentence on its own line for better version control diffs:
+
+----
+This is the first sentence.
+This is the second sentence.
+They will be joined into a single paragraph.
+----
+
+=== File Organization
+
+For large documents, split into multiple files:
+
+----
+= Main Document
+\include::chapters/introduction.adoc[]
+\include::chapters/getting-started.adoc[]
+\include::chapters/advanced-topics.adoc[]
+\include::chapters/appendix.adoc[]
+----
+
+=== Conditional Content by Output
+
+----
+\ifdef::backend-html5[]
+++++
+<script>console.log("HTML only");</script>
+++++
+\endif::[]
+
+\ifdef::backend-pdf[]
+NOTE: This only appears in PDF output.
+\endif::[]
+----
+
+=== Portable Image Sizing
+
+----
+:imagesdir: images
+
+// Relative to content width
+image::photo.jpg[width=50%]
+
+// Absolute in pixels
+image::photo.jpg[width=400]
+----
+
+=== Prevent Unwanted Substitution
+
+If you're documenting AsciiDoc itself, escape or passthrough the syntax:
+
+----
+To make text bold, wrap it in +*asterisks*+.
+
+The pass:[include::] directive imports other files.
+----
+
+=== Custom CSS
+
+----
+:stylesheet: my-styles.css
+:linkcss:
+----
+
+Or embed inline:
+
+----
+ifdef::backend-html5[]
+++++
+<style>
+.custom-class { color: navy; font-weight: bold; }
+</style>
+++++
+endif::[]
+----
