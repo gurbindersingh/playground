@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
-logFile="$HOME/logs/run-all-backups.log"
+today="$(date +'%F')"
+log_file="$HOME/logs/run-all-backups.$today.log"
 
 {
   echo "[DEBUG] Changing into script's directory."
@@ -14,4 +15,4 @@ logFile="$HOME/logs/run-all-backups.log"
   bash thunderbird.sh
   bash repos.sh
   printf "\n\n"
-} >>"$logFile" 2>&1
+} >>"$log_file" 2>&1
