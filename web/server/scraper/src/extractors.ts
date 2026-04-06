@@ -1,7 +1,9 @@
 import { chromium } from "@playwright/test";
 import * as cheerio from "cheerio";
-import { saveFile } from "./utils/file_util";
-import { sleep } from "bun";
+import { getLogger } from "./utils/logger.ts";
+import { saveFile } from "./utils/file_util.ts";
+
+const logger = getLogger("extractors");
 
 /**
  * Adds a delay.
@@ -12,7 +14,7 @@ import { sleep } from "bun";
  */
 function randomDelay(min = 1000, max = 10000) {
   const delay = Math.round(Math.max(min, Math.random() * max));
-  console.log(`Delay ${delay} ms`);
+  logger.debug(`Delay ${delay} ms`);
   return delay;
 }
 
@@ -30,20 +32,31 @@ export async function scrapePages(
     saveTo: string;
   }[],
 ) {
+  logger.info(`Scraping ${pages.length} page(s).`);
   const browser = await chromium.launch();
+  logger.debug("Browser launched.");
   const pagesContent: string[] = [];
 
   for (const pageConfig of pages) {
-    console.log(`Extracting page ${pageConfig.url}.`);
+    logger.info(`Extracting page ${pageConfig.url}.`);
     const browserPage = await browser.newPage();
-    await browserPage.goto(pageConfig.url);
+    const t0 = Date.now();
+    try {
+      await browserPage.goto(pageConfig.url);
+    } catch (err) {
+      logger.error(`Failed to load ${pageConfig.url}: ${err}`);
+      continue;
+    }
+    logger.debug(`Page loaded in ${Date.now() - t0} ms.`);
 
     const content = await browserPage.content();
+    logger.debug(`Page content: ${content.length} chars.`);
     await saveFile(content, pageConfig.saveTo);
     pagesContent.push(content);
-    await sleep(randomDelay());
+    await new Promise((res) => setTimeout(res, randomDelay()));
   }
   browser.close();
+  logger.debug("Browser closed.");
   return pagesContent;
 }
 
@@ -55,16 +68,16 @@ export async function scrapePages(
  */
 export function extractLinks(html: string, restrictToElement = "body") {
   const $ = cheerio.load(html);
-  return (
-    $(restrictToElement)
-      .find("a")
-      .toArray()
-      .map((link) =>
-        link.attribs["href"] !== undefined ? link.attribs["href"] : "",
-      )
-      // Filter out all blank links
-      .filter((l) => l)
-  );
+  const links = $(restrictToElement)
+    .find("a")
+    .toArray()
+    .map((link) =>
+      link.attribs["href"] !== undefined ? link.attribs["href"] : "",
+    )
+    // Filter out all blank links
+    .filter((l) => l);
+  logger.debug(`Extracted ${links.length} link(s) from "${restrictToElement}".`);
+  return links;
 }
 
 export function reduceToText(

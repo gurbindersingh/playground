@@ -1,9 +1,12 @@
-import { appendFileSync, copyFileSync } from "fs";
-import { readdir } from "fs/promises";
-import { join } from "path";
+import { appendFileSync, copyFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { getLogger } from "./logger.ts";
+
+const logger = getLogger("file_util");
 
 export function getProjectRoot() {
-  return join(import.meta.dir, "/../..");
+  return new URL("../..", import.meta.url).pathname;
 }
 
 export function pathFromRoot(...paths: string[]) {
@@ -16,48 +19,45 @@ export function pathInDataDirectory(...paths: string[]) {
 
 export function appendToFileWithBackup(content: string, ...paths: string[]) {
   const fullPath = pathInDataDirectory(...paths);
+  logger.debug(`Backing up ${fullPath}.`);
   copyFileSync(fullPath, fullPath + ".bak");
   appendToFile(content, ...paths);
 }
 
 export function appendToFile(content: string, ...paths: string[]) {
-  appendFileSync(pathInDataDirectory(...paths), content);
+  const filePath = pathInDataDirectory(...paths);
+  logger.debug(`Appending ${content.length} char(s) to ${filePath}.`);
+  appendFileSync(filePath, content);
 }
 
 export async function saveFile(content: string, ...paths: string[]) {
   const filePath = pathInDataDirectory(...paths);
-  const bytesWritten = await Bun.write(filePath, content);
-
-  if (bytesWritten >= content.length) {
-    console.log(`Saved file ${filePath}.`);
-  } else {
-    throw Error(
-      `File ${filePath} could not be written to properly. Content might be missing.`,
-    );
-  }
+  await Deno.writeTextFile(filePath, content);
+  logger.debug(`Saved file ${filePath}.`);
 }
 
 export async function readFile(...paths: string[]) {
   const filePath = pathInDataDirectory(...paths);
-  const file = Bun.file(filePath);
-
-  if (await file.exists()) {
-    console.log(`Retrieving file ${filePath}.`);
-    return file.text();
-  } else {
+  try {
+    await Deno.stat(filePath);
+  } catch {
+    logger.error(`File not found: ${filePath}`);
     throw Error(`File ${filePath} does not exist.`);
   }
+  logger.debug(`Retrieving file ${filePath}.`);
+  return Deno.readTextFile(filePath);
 }
 
 export async function fileExists(...paths: string[]) {
   const filePath = pathInDataDirectory(...paths);
-  const exists = await Bun.file(filePath).exists();
-
-  if (exists) {
-    console.log(`File ${filePath} exist.`);
-  } else {
-    console.log(`File ${filePath} does not exist.`);
+  let exists: boolean;
+  try {
+    await Deno.stat(filePath);
+    exists = true;
+  } catch {
+    exists = false;
   }
+  logger.debug(`File ${filePath} ${exists ? "exist" : "does not exist"}.`);
   return exists;
 }
 

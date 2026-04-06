@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@playwright/test": "npm:@playwright/test@^1.55.0",
+    "cheerio": "npm:cheerio@^1.1.2",
+    "@std/log": "jsr:@std/log"
+  }
+}

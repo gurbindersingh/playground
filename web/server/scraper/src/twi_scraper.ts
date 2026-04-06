@@ -1,11 +1,15 @@
-import { getConfigs } from "../configs/twi-scraper";
-import { extractLinks, reduceToText, scrapePages } from "./extractors";
+import path from "node:path";
+import { getConfigs } from "../configs/twi-scraper.ts";
+import { extractLinks, reduceToText, scrapePages } from "./extractors.ts";
 import {
   appendToFileWithBackup,
   fileExists,
   readFile,
   saveFile,
-} from "./utils/file_util";
+} from "./utils/file_util.ts";
+import { getLogger } from "./utils/logger.ts";
+
+const logger = getLogger("twi_scraper");
 
 /**
  * Extracts the URLs from all anchor tags on this page. The results only
@@ -18,7 +22,7 @@ async function extractNewLinks(
   html: string,
   configs: ReturnType<typeof getConfigs>,
 ) {
-  console.log("Extracting new links.");
+  logger.info("Extracting new links.");
 
   const scrapedLinks = await readFile(
     configs.dataDirectory,
@@ -26,9 +30,12 @@ async function extractNewLinks(
   );
   // Filter out all outgoing links (those that point to other sites) and links
   // that have already been scraped.
-  const newLinks = extractLinks(html, configs.links.selector).filter(
+  const allLinks = extractLinks(html, configs.links.selector);
+  logger.debug(`Found ${allLinks.length} total link(s) in page.`);
+  const newLinks = allLinks.filter(
     (link) => link.startsWith(configs.siteUrl) && !scrapedLinks.includes(link),
   );
+  logger.debug(`${newLinks.length} new link(s) after filtering external and already-scraped URLs.`);
   return newLinks;
 }
 
@@ -66,25 +73,30 @@ async function cleanUpPages(
   filePaths: string[],
   configs: ReturnType<typeof getConfigs>,
 ) {
-  if (filePaths.length < 1) throw Error("Empty array");
+  if (filePaths.length < 1) {
+    logger.error("cleanUpPages called with empty array.");
+    throw Error("Empty array");
+  }
+  logger.info(`Cleaning up ${filePaths.length} file(s).`);
 
-  for (const path of filePaths) {
-    console.log("Cleaning up file", path);
+  for (const filePath of filePaths) {
+    logger.debug(`Cleaning up file ${filePath}`);
     const html = await readFile(
       configs.dataDirectory,
       configs.savedPages.raw,
-      path,
+      path.basename(filePath),
     );
 
     const cleanedPage = reduceToText(html, configs.textNodes);
-    if (configs.filters.some((filter) => cleanedPage.includes(filter)))
+    if (configs.filters.some((filter) => cleanedPage.includes(filter))) {
+      logger.warn(`Skipping ${filePath} (matches exclusion filter).`);
       continue;
-    else
+    } else
       await saveFile(
         cleanedPage,
         configs.dataDirectory,
         configs.savedPages.cleaned,
-        path,
+        filePath,
       );
   }
 }
@@ -93,7 +105,7 @@ async function saveNewLinks(
   links: { url: string; saveTo: string }[],
   configs: ReturnType<typeof getConfigs>,
 ) {
-  console.log("Saving new links.");
+  logger.info(`Saving new links (${links.length} candidate(s)).`);
   for (const link of links) {
     if (
       await fileExists(
@@ -102,12 +114,14 @@ async function saveNewLinks(
         link.saveTo,
       )
     ) {
-      console.log(`Adding link ${link.url} to scraped pages.`);
+      logger.info(`Adding link ${link.url} to scraped pages.`);
       appendToFileWithBackup(
         "\n" + link.url,
         configs.dataDirectory,
         configs.links.saveTo,
       );
+    } else {
+      logger.warn(`Skipping ${link.url} (cleaned file not found).`);
     }
   }
 }
@@ -125,6 +139,8 @@ async function saveNewLinks(
 async function main() {
   const isMock = true;
   const configs = getConfigs();
+  logger.info(`Starting scraper in ${isMock ? "mock" : "live"} mode.`);
+  logger.debug(`Fetching ${configs.startPages.length} start page(s).`);
 
   const startPagesHtml: string[] = isMock
     ? await Promise.all(
@@ -139,8 +155,10 @@ async function main() {
       startPagesHtml.map((page) => extractNewLinks(page, configs)),
     )
   ).flatMap((links) => links);
+  logger.info(`Found ${newLinks.length} new link(s) to scrape.`);
 
   const newPagesConfigs = await createSubPageConfigs(newLinks, configs);
+  logger.debug(`Scraping ${newPagesConfigs.length} page(s).`);
   isMock
     ? await Promise.all(newPagesConfigs.map((conf) => readFile(conf.saveTo)))
     : await scrapePages(newPagesConfigs);
@@ -155,4 +173,4 @@ async function main() {
   saveNewLinks(newPagesConfigs, configs);
 }
 
-main();
+main().then(() => logger.info("Done."));

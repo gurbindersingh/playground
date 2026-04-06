@@ -6,7 +6,7 @@ echo "[$(date +'%F %H:%M:%S')] Backing up files"
 directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory" || exit 1
 
-. ./configs/files.sh
+. configs/files.sh
 
 {
   echo "[$(date +'%F %H:%M:%S')] Creating backup of '${source:?Source not set}' at '${dest:?Destination not set}'."
