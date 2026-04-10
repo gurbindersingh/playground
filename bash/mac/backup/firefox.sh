@@ -3,10 +3,9 @@ set -e
 
 echo "[$(date +'%F %H:%M:%S')] Backing up Firefox profile"
 
-directory="$(dirname -- "${BASH_SOURCE[0]}")"
-cd "$directory"
-
-. configs/firefox.sh
+config="${XDG_CONFIG_HOME:-$HOME/.config}/firefox-backup.sh"
+[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+. "$config"
 
 # NOTE: Change into the source directory so that changes to the metadata in
 #       the parent directories does not trigger a snapshot.

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-directory="$(dirname -- "${BASH_SOURCE[0]}")"
-cd "$directory"
-
-. ./example.config.sh
+config="${XDG_CONFIG_HOME:-$HOME/.config}/restic.sh"
+[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+. "$config"
 
 restic snapshots
 unset $RESTIC_PASSWORD

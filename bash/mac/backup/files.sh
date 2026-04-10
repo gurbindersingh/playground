@@ -3,10 +3,9 @@ set -e
 
 echo "[$(date +'%F %H:%M:%S')] Backing up files"
 
-directory="$(dirname -- "${BASH_SOURCE[0]}")"
-cd "$directory" || exit 1
-
-. configs/files.sh
+config="${XDG_CONFIG_HOME:-$HOME/.config}/files-backup.sh"
+[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+. "$config"
 
 {
   echo "[$(date +'%F %H:%M:%S')] Creating backup of '${source:?Source not set}' at '${dest:?Destination not set}'."

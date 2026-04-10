@@ -2,9 +2,10 @@
 set -e
 
 log_file="$HOME/logs/convert-webloc.log"
-script_directory="$(dirname -- "${BASH_SOURCE[0]}")"
-# shellcheck source=configs/links.sh
-source "$script_directory/configs/links.sh"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/convert-webloc-to-url.sh"
+[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+# shellcheck source=/dev/null
+. "$config"
 
 {
   find "$links_directory" -type f -iname '*.webloc' | while read -r file; do

@@ -7,10 +7,9 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-directory="$(dirname -- "${BASH_SOURCE[0]}")"
-cd "$directory"
-
-. ./configs/clouds.sh
+config="${XDG_CONFIG_HOME:-$HOME/.config}/cloud-backup.sh"
+[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+. "$config"
 
 snapshot="$1"
 
