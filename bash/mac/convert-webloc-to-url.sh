@@ -2,12 +2,13 @@
 set -e
 
 log_file="$HOME/logs/convert-webloc.log"
-config="${XDG_CONFIG_HOME:-$HOME/.config}/convert-webloc-to-url.sh"
-[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
-# shellcheck source=/dev/null
-. "$config"
 
 {
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/convert-webloc-to-url.sh"
+  [ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+  # shellcheck source=/dev/null
+  . "$config"
+
   find "$links_directory" -type f -iname '*.webloc' | while read -r file; do
     # Extract the URL from the webloc file.
     url=$(/opt/homebrew/bin/rg --no-line-number --trim '<string>.+</string>' "$file" | sed -E 's/<(\/)?string>//g')
