@@ -11,7 +11,10 @@ directory="$(dirname -- "${BASH_SOURCE[0]}")"
 cd "$directory"
 
 config="${XDG_CONFIG_HOME:-$HOME/.config}/cloud-backup.sh"
-[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
+[ -r "$config" ] || {
+  echo "Config not found: $config" >&2
+  exit 1
+}
 . "$config"
 
 backup_sources=("$@")
@@ -19,7 +22,7 @@ backup_sources=("$@")
 restic \
   --insecure-no-password backup \
   --skip-if-unchanged \
-  --exclude-file ./configs/restic-exclude \
+  --exclude-file "$HOME/.configs/restic-exclude-cloud" \
   "${backup_sources[@]:?}"
 # --dry-run \
 restic --insecure-no-password check
