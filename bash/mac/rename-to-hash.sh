@@ -3,7 +3,7 @@ set -e
 
 if [[ $# -le 0 ]]; then
   echo "Missing FILE argument."
-  echo "Usage: $0 FILE..."
+  echo "Usage: $(basename "$0") FILE..."
   exit 1
 fi
 

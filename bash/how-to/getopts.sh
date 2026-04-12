@@ -28,7 +28,7 @@ while getopts "${optstring}" arg; do
       echo "Option b $OPTARG"
       ;;
     :)
-      echo "$0: -$OPTARG expects an argument." >&2
+      echo "$(basename "$0"): -$OPTARG expects an argument." >&2
       exit 1
       ;;
     ?)

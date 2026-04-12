@@ -3,7 +3,7 @@ set -e
 
 if [[ $# -lt 1 ]]; then
     echo "ERROR: Missing arguments"
-    echo "Usage: $0 SNAPSHOT"
+    echo "Usage: $(basename "$0") SNAPSHOT"
     exit 1
 fi
 

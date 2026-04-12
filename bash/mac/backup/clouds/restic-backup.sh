@@ -3,7 +3,7 @@ set -e
 
 if [[ "$#" -lt 1 ]]; then
   echo "Missing PATH parameter"
-  echo "Usage: $0 PATH..."
+  echo "Usage: $(basename "$0") PATH..."
   exit 1
 fi
 

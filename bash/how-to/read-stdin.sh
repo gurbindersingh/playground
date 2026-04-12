@@ -5,7 +5,7 @@ set -e
 # be consumed once, we stash the input in a temp file up front and feed each
 # block from it.
 if [ -t 0 ]; then
-  echo "usage: printf 'a\\nb\\nc' | $0" >&2
+  echo "usage: printf 'a\\nb\\nc' | $(basename "$0")" >&2
   exit 1
 fi
 
