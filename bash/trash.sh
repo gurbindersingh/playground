@@ -2,7 +2,7 @@
 set -e
 
 usage() {
-  echo "Usage: trash.sh [OPTIONS] [FILE...]"
+  echo "Usage: $0 [OPTIONS] [FILE...]"
   echo ""
   echo "  Option:"
   echo "    -e  Empty bin"

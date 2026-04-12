@@ -3,7 +3,7 @@ set -e
 
 if [[ $# -le 0 ]]; then
   echo "Missing FILE argument."
-  echo "Usage: rename-to-hash.sh FILE..."
+  echo "Usage: $0 FILE..."
   exit 1
 fi
 

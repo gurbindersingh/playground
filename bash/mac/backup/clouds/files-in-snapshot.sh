@@ -3,7 +3,7 @@ set -e
 
 if [[ $# -lt 1 ]]; then
   echo "ERROR: Missing arguments"
-  echo "Usage: list-files-in-snapshot.sh SNAPSHOT"
+  echo "Usage: $0 SNAPSHOT"
   exit 1
 fi
 

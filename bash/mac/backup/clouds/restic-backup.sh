@@ -3,7 +3,7 @@ set -e
 
 if [[ "$#" -lt 1 ]]; then
   echo "Missing PATH parameter"
-  echo "Usage: restic-backup PATH..."
+  echo "Usage: $0 PATH..."
   exit 1
 fi
 
