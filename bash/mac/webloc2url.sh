@@ -21,6 +21,4 @@ for file in "${files[@]}"; do
 
   echo "[InternetShortcut]" >"$url_file"
   echo "URL=$url" >>"$url_file"
-
-  echo "[$(date +'%F %H:%M:%S')] Converted $file"
 done
