@@ -12,14 +12,26 @@ import utils.path_utils as path_util
 LOGGER = logger_factory.get_logger("scraper", with_log_file=True)
 
 
+def sanitize(value: str) -> str:
+    return value.replace("\n", "\\n").replace("\r", "\\r")
+
+
+def safe_path(base_dir: str, filename: str) -> Path:
+    base = Path(base_dir).resolve()
+    target = (base / filename).resolve()
+    if not target.is_relative_to(base):
+        raise ValueError(f"Unsafe path detected: '{filename}'")
+    return target
+
+
 def readFile(filePath):
-    LOGGER.debug(f"Reading {filePath}.")
+    LOGGER.debug(f"Reading {sanitize(str(filePath))}.")
     with open(filePath, "r") as file:
         return file.readlines()
 
 
 def writeFile(filePath, content: str):
-    LOGGER.debug(f"Writing to {filePath}.")
+    LOGGER.debug(f"Writing to {sanitize(str(filePath))}.")
     with open(filePath, mode="w", encoding="utf-8") as file:
         file.write(content)
 
@@ -44,12 +56,12 @@ def extractContent(htmlString: str, contentClass: str, splitPoint: str):
 
 
 def scrapePage(url: str, filters: str):
-    LOGGER.debug(f"Scraping url {url}")
+    LOGGER.debug(f"Scraping url {sanitize(url)}")
 
     htmlPage = fetchPage(url)
     # Keep filter simple for now
     if htmlPage.split("<h1 ")[1].split("</h1>")[0].find(filters) >= 0:
-        LOGGER.debug(f"Page '{url}' matches filter '{filters}', skipping.")
+        LOGGER.debug(f"Page '{sanitize(url)}' matches filter '{filters}', skipping.")
         return ""
 
     return htmlPage
@@ -58,7 +70,7 @@ def scrapePage(url: str, filters: str):
 def fetchPage(url: str, minWait=5, maxWait=30):
     # So that we don't accidentally DOS their website
     sleepSeconds = randint(minWait, maxWait)
-    LOGGER.debug(f"Wait for {sleepSeconds} seconds before downloading {url}")
+    LOGGER.debug(f"Wait for {sleepSeconds} seconds before downloading {sanitize(url)}")
     sleep(sleepSeconds)
 
     response = requests.get(url, timeout=15)
@@ -115,21 +127,21 @@ def main():
 
     for url in urls:
         fileName = getFilenameFromUrl(url=url, prefix=configs["site-url"])
-        rawPageFile = f"{rawPagesDirectory}/{fileName}"
-        cleanedPageFile = f"{cleanedPagesDirectory}/{fileName}"
+        rawPageFile = safe_path(rawPagesDirectory, fileName)
+        cleanedPageFile = safe_path(cleanedPagesDirectory, fileName)
 
-        if Path(cleanedPageFile).exists():
+        if cleanedPageFile.exists():
             # LOGGER.debug(f"Cleaned page file '{fileName}' already exists, skipping.")
             continue
 
-        if Path(rawPageFile).exists():
-            LOGGER.debug(f"Reading raw page from {rawPageFile}")
+        if rawPageFile.exists():
+            LOGGER.debug(f"Reading raw page from {sanitize(str(rawPageFile))}")
             rawPage = readFile(rawPageFile)
         else:
-            LOGGER.debug(f"Reading raw page from {url}")
+            LOGGER.debug(f"Reading raw page from {sanitize(url)}")
             rawPage = scrapePage(url=url, filters=configs["filters"])
             if rawPage == "":
-                LOGGER.debug(f"No content for page '{url}', skipping.")
+                LOGGER.debug(f"No content for page '{sanitize(url)}', skipping.")
                 continue
             writeFile(filePath=rawPageFile, content=rawPage)
 
