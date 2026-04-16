@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from typing import List
 
 # https://stackoverflow.com/questions/4760215/running-shell-command-and-capturing-the-output
@@ -13,7 +14,7 @@ def runCommand(command: List[str]) -> str:
 
     if errors and not errors.isspace():
         print(errors)
-        exit(1)
+        sys.exit(1)
 
     return (result.stdout.decode("utf-8"))
 
