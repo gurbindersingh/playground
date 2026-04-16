@@ -1,4 +1,3 @@
-import os
 import subprocess
 from typing import List
 
@@ -7,19 +6,19 @@ from typing import List
 
 def runCommand(command: List[str]) -> str:
     # NOTE: List is deprecated as of 3.9
-    # 
+    #
     # IMPORTANT: Arguments do not require quotes
     result = subprocess.run(command, capture_output=True)
     errors = result.stderr.decode("utf-8")
 
-    if(len(errors) > 0 or not errors.isspace):
+    if errors and not errors.isspace():
         print(errors)
         exit(1)
 
     return (result.stdout.decode("utf-8"))
 
 
-# This is the simplest method. But will not capture output
-os.system("ls -lh")
-print("\n\n")
+# NOTE: os.system() is unsafe — it invokes a shell and is vulnerable to command
+# injection if any part of the command comes from user input. Use subprocess.run()
+# with a list of arguments (never shell=True) as shown below.
 print(runCommand(["ls", "-lh"]))
