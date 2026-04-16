@@ -9,3 +9,6 @@ dependencies = [
     "pillow>=12.2.0",
     "pytest-playwright>=0.7.0",
 ]
+
+[project.scripts]
+image-hashing = "image_hashing:main"

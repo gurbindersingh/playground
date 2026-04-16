@@ -9,3 +9,4 @@ configs
 temp
 logs
 data
+python.egg-info

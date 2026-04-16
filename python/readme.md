@@ -3,6 +3,7 @@
 ## Table of content
 
 - [Table of content](#table-of-content)
+- [Installing scripts as commands](#installing-scripts-as-commands)
 - [Variable scopes in Python](#variable-scopes-in-python)
 - [Writing asynchronous code using asyncio](#writing-asynchronous-code-using-asyncio)
   - [How asyncio works](#how-asyncio-works)
@@ -15,6 +16,34 @@
     - [Concurrency](#concurrency)
     - [Calling blocking functions](#calling-blocking-functions)
   - [Asynchronous programming vs. multi-threading/processing](#asynchronous-programming-vs-multi-threadingprocessing)
+
+## Installing scripts as commands
+
+Scripts can be installed as system-wide commands using `uv tool`, making them
+invocable from any directory.
+
+**1. Ensure the script has a `main()` function.**
+
+**2. Register it in `pyproject.toml`:**
+
+```toml
+[project.scripts]
+command-name = "module_name:main"
+```
+
+The key is the command name. The value is `module_name:function`, where
+`module_name` is the filename without `.py`.  Note that module names must use
+underscores, not hyphens.
+
+**3. Install:**
+
+```bash
+uv tool install --editable .
+```
+
+The `--editable` flag means changes to the script take effect immediately
+without reinstalling. Re-run this command after adding new entries to
+`[project.scripts]`.
 
 ## Variable scopes in Python
 
