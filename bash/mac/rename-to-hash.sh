@@ -30,7 +30,7 @@ for file in "${files[@]}"; do
   fi
 
   if [[ -e "$new_name" ]]; then
-    echo "File '$new_name' already exists. Skipping."
+    echo "File '$new_name' already exists. Skipping '$old_name'."
     continue
   fi
 
