@@ -24,10 +24,11 @@ cat > "$tmp"
 { input=$(</dev/stdin); echo "2: $input"; } < "$tmp"
 
 # --- 3. Read a single line ----------------------------------------------------
-# `-r`  : don't treat backslashes as escapes (otherwise `\n` etc. get mangled).
-# `IFS=`: don't strip leading/trailing whitespace from the line.
+# `-r`     : don't treat backslashes as escapes (otherwise `\n` etc. get mangled).
+# `IFS=''` : set the field separator to empty so `read` doesn't strip leading/
+#            trailing whitespace from the line. (`IFS=` is a shorter equivalent.)
 # Gotcha: `read` returns non-zero on EOF, which trips `set -e` — guard it.
-{ IFS= read -r line || true; echo "3: $line"; } < "$tmp"
+{ IFS='' read -r line || true; echo "3: $line"; } < "$tmp"
 
 # --- 4. Line-by-line loop -----------------------------------------------------
 # Gotcha A: a final line with no trailing `\n` is silently dropped unless you
@@ -35,7 +36,7 @@ cat > "$tmp"
 # Gotcha B: `cmd | while read ...` runs the loop body in a subshell, so any
 #           variables set inside are lost. Use input redirection instead:
 #           `while ...; done < <(cmd)`  or  `done < file`.
-while IFS= read -r line || [[ -n $line ]]; do
+while IFS='' read -r line || [[ -n $line ]]; do
   echo "4: $line"
 done < "$tmp"
 
@@ -48,7 +49,7 @@ if ((BASH_VERSINFO[0] >= 4)); then
   readarray -t lines < "$tmp" # or: mapfile -t lines < "$tmp"
 else
   lines=()
-  while IFS= read -r line || [[ -n $line ]]; do
+  while IFS='' read -r line || [[ -n $line ]]; do
     lines+=("$line")
   done < "$tmp"
 fi
@@ -58,7 +59,7 @@ printf '5: %s\n' "${lines[@]}"
 # Pair with producers that emit NULs: `find -print0`, `grep -Z`, `xargs -0`.
 # Gotcha: `-d ''` expects real NUL bytes. Feeding newline-delimited data to a
 # `-d ''` loop will slurp the whole stream into one `$item`.
-while IFS= read -r -d '' item; do
+while IFS='' read -r -d '' item; do
   echo "6: $item"
 done < <(printf '%s\0' one two "three with spaces")
 
