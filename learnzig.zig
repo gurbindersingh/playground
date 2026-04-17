@@ -1,10 +1,8 @@
-
 //! Top-level documentation.
 
 /// Documentation comment.
 
 // Simple comment.
-
 // Import standard library, reachable through the "std" constant.
 const std = @import("std");
 
@@ -19,7 +17,6 @@ pub fn main() void {
     // In Zig: std.log.info takes a format and a list of elements to print.
     info("hello world", .{});  // .{} is an empty anonymous tuple.
 }
-
 // Booleans.
 // Keywords are preferred to operators for boolean operations.
 print("{}\n{}\n{}\n", .{
@@ -44,7 +41,7 @@ var myvar: u10 = 5; // 10-bit unsigned integer
 const one_billion = 1_000_000_000;         // Decimal.
 const binary_mask = 0b1_1111_1111;         // Binary. Ex: network mask.
 const permissions = 0o7_5_5;               // Octal.  Ex: Unix permissions.
-const big_address = 0xFF80_0000_0000_0000; // Hexa.   Ex: IPv6 address.
+const big_address = 0xFF80_0000_0000_0000; // Hex.    Ex: IPv6 address.
 
 
 // Overflow operators: tell the compiler when it's okay to overflow.
@@ -58,7 +55,6 @@ i  +| 100 == 255   // u8: won't go higher than 255
 i  -| 300 == 0     // unsigned, won't go lower than 0
 i  *| 2   == 255   // u8: won't go higher than 255
 i <<| 8   == 255   // u8: won't go higher than 255
-
 // An array is a well-defined structure with a length attribute (len).
 
 // 5-byte array with undefined content (stack garbage).
@@ -102,26 +98,22 @@ try some_integers[i]; // Runtime error 'index out of bounds'.
                       // "try" keyword is necessary when accessing an array with
                       // an index, since there is a potential runtime error.
                       // More on that later.
-
-
 const mat4x4 = [4][4]f32{
-    [_]f32{ 1.0, 0.0, 0.0, 0.0 },
-    [_]f32{ 0.0, 1.0, 0.0, 1.0 },
-    [_]f32{ 0.0, 0.0, 1.0, 0.0 },
-    [_]f32{ 0.0, 0.0, 0.0, 1.0 },
+    .{ 1, 0, 0, 0 },
+    .{ 0, 1, 0, 1 },
+    .{ 0, 0, 1, 0 },
+    .{ 0, 0, 0, 1 },
 };
 
 // Access the 2D array then the inner array through indexes.
 try expect(mat4x4[1][1] == 1.0);
 
 // Here we iterate with for loops.
-for (mat4x4) |row, row_index| {
-    for (row) |cell, column_index| {
+for (mat4x4, 0..) |row, row_index| {
+    for (row, 0..) |cell, column_index| {
         // ...
     }
 }
-
-
 // Simple string constant.
 const greetings = "hello";
 // ... which is equivalent to:
@@ -135,16 +127,12 @@ print("string: {s}\n", .{greetings});
 // This represents rather faithfully C strings. Although, Zig strings are
 // structures, no need for "strlen" to compute their size.
 // greetings.len == 5
-
-
 // A slice is a pointer and a size, an array without compile-time known size.
 // Slices have runtime out-of-band verifications.
 
 const array = [_]u8{1,2,3,4,5};     // [_] = array with compile-time known size.
 const slice = array[0..array.len];  // "slice" represents the whole array.
                                     // slice[10] gives a runtime error.
-
-
 // Pointer on a value can be created with "&".
 const x: i32 = 1;
 const pointer: *i32 = &x;  // "pointer" is a pointer on the i32 var "x".
@@ -157,7 +145,6 @@ if (pointer.* == 1) {
 
 // ".?" is a shortcut for "orelse unreachable".
 const foo = pointer.?; // Get the pointed value, otherwise crash.
-
 // An optional is a value than can be of any type or null.
 
 // Example: "optional_value" can either be "null" or an unsigned 32-bit integer.
@@ -170,7 +157,6 @@ if (x) |value| {
     // In case "some_function" returned a value.
     // Do something with 'value'.
 }
-
 // Zig provides an unified way to express errors.
 
 // Errors are defined in error enumerations, example:
@@ -226,7 +212,6 @@ const unwrapped = some_function() catch 1234; // "unwrapped" = 1234
 var value = try some_function();
 // If "some_function" fails, the current function stops and returns the error.
 // "value" can only have a valid value, the error already is handled with "try".
-
 // Conditional branching.
 
 if (condition) {
@@ -262,6 +247,7 @@ if (a) |*value| { value.* += 1; }
 //
 //   for (iterable) statement
 //   for (iterable) |capture| statement
+//   for (iterable, iterable...) |capture, capture...| statement
 //   for (iterable) statement else statement
 
 // Note: loops work the same way over arrays or slices.
@@ -275,6 +261,9 @@ while (i < 10) : (i += 1) { ... }
 // Same, with a more complex continue expression (block of code).
 while (i * j < 2000) : ({ i *= 2; j *= 3; }) { ... }
 
+// Simple for loop over a range.
+for (0..10) |i| { sum += i; }
+
 // To iterate over a portion of a slice, reslice.
 for (items[0..1]) |value| { sum += value; }
 
@@ -282,13 +271,16 @@ for (items[0..1]) |value| { sum += value; }
 for (items) |value| { sum += value; }
 
 // Iterate and get pointers on values instead of copies.
-for (items) |*value| { value.* += 1; }
+for (&items) |*value| { value.* += 1; }
+
+// You can iterate multiple ranges.
+for (0..10, 10..20) |i, j| { sum += i * j; }
 
 // Iterate with an index.
-for (items) |value, i| { print("val[{}] = {}\n", .{i, value}); }
+for (items, 0..) |value, i| { print("val[{}] = {}\n", .{i, value}); }
 
 // Iterate with pointer and index.
-for (items) |*value, i| { print("val[{}] = {}\n", .{i, value}); value.* += 1; }
+for (&items, 0..) |*value, i| { print("val[{}] = {}\n", .{i, value}); value.* += 1; }
 
 
 // Break and continue are supported.
@@ -302,14 +294,25 @@ for (items) |value| {
 // Similar to while loops, when you break from a for loop,
 // the else branch is not evaluated.
 var sum: i32 = 0;
-// The "for" loop has to provide a value, which will be the "else" value.
+// The "for" loop has to provide a value,
+// which will be the "else" value in this case.
 const result = for (items) |value| {
-    if (value != null) {
-        sum += value.?; // "result" will be the last "sum" value.
+    // Add "value" to "sum" if it's not "null", otherwise add 0
+    sum += value orelse 0;
+} else 0; // result == 0
+
+
+// To set "result" to the value of "sum",
+// break it out of the loop at the last iteration.
+const result = for (items, 1..) |value, i| {
+    sum += value orelse 0;
+
+    // Check if we are at the last iteration
+    if (i == items.len) {
+        // Break value out of the loop
+        break sum; // result == sum
     }
-} else 0;                  // Last value.
-
-
+} else unreachable;
 // Labels are a way to name an instruction, a location in the code.
 // Labels can be used to "continue" or "break" in a nested loop.
 outer: for ([_]i32{ 1, 2, 3, 4, 5, 6, 7, 8 }) |_| {
@@ -355,8 +358,6 @@ const result = for (items) |value| { // First: loop.
     std.log.info("executed AFTER the loop!", .{});
     break :blk sum; // The "sum" value will replace the label "blk".
 };
-
-
 // As a switch in C, but slightly more advanced.
 // Syntax:
 //   switch (value) {
@@ -375,12 +376,10 @@ var x = switch(value) {
 // A slightly more advanced switch, accepting a range of values:
 const foo: i32 = 0;
 const bar = switch (foo) {
-  0                        => "zero",
-  1...std.math.maxInt(i32) => "positive",
-  else                     => "negative",
+    0                        => "zero",
+    1...std.math.maxInt(i32) => "positive",
+    else                     => "negative",
 };
-
-
 // Structure containing a single value.
 const Full = struct {
     number: u16,
@@ -479,48 +478,41 @@ print("p.y: {}\n", .{p.y}); // 30
 // In Zig, structures provide namespaces for their own functions.
 // Different structures can have the same names for their functions,
 // which brings clarity.
-
 // A tuple is a list of elements, possibly of different types.
 
 const foo = .{ "hello", true, 42 };
 // foo.len == 3
-
-
 const Type = enum { ok, not_ok };
 
 const CardinalDirections = enum { North, South, East, West };
 const direction: CardinalDirections = .North;
 const x = switch (direction) {
-  // shorthand for CardinalDirections.North
-  .North => true,
-  else => false
+    // shorthand for CardinalDirections.North
+    .North => true,
+    else => false
 };
 
 // Switch statements need exhaustiveness.
 // WARNING: won't compile. East and West are missing.
 const x = switch (direction) {
-  .North => true,
-  .South => true,
+    .North => true,
+    .South => true,
 };
 
-
-// Switch statements need exhaustiveness.
-// Won't compile: East and West are missing.
+// This compiles without errors, since it exhaustively lists all possible values
 const x = switch (direction) {
-  .North => true,
-  .South => true,
-  .East,          // Its value is the same as the following pattern: false.
-  .West => false,
+    .North => true,
+    .South => true,
+    .East,          // Its value is the same as the following pattern: false.
+    .West => false,
 };
 
 
 // Enumerations are like structures: they can have functions.
-
-
 const Bar = union {
-  boolean: bool,
-  int: i16,
-  float: f32,
+    boolean: bool,
+    int: i16,
+    float: f32,
 };
 
 // Both syntaxes are equivalent.
@@ -528,8 +520,6 @@ const foo = Bar{ .int = 42 };
 const foo: Bar = .{ .int = 42 };
 
 // Unions, like enumerations and structures, can have functions.
-
-
 // Unions can be declared with an enum tag type, allowing them to be used in
 // switch expressions.
 
@@ -556,8 +546,6 @@ switch (nay) {
     .success => |value|     std.log.info("success: {}", .{value}),
     .failure => |err_msg|   std.log.info("failure: {}", .{err_msg}),
 }
-
-
 // Make sure that an action (single instruction or block of code) is executed
 // before the end of the scope (function, block of code).
 // Even on error, that action will be executed.
@@ -589,7 +577,6 @@ fn second_hello_world() !void {
     try foo();
 }
 // Defer statements can be seen as stacked: first one is executed last.
-
 // "!void" means the function doesn't return any value except for errors.
 // In this case we try to allocate memory, and this may fail.
 fn foo() !void {
@@ -609,8 +596,6 @@ fn foo() !void {
         std.debug.print("item: {}\n", .{item});
     }
 }
-
-
 fn some_memory_allocation_example() !void {
     // Memory allocation may fail, so we "try" to allocate the memory and
     // in case there is an error, the current function returns it.
@@ -630,8 +615,6 @@ fn some_memory_allocation_example() !void {
 
     // ...
 }
-
-
 // Allocators: 4 main functions to know
 //   single_value = create (type)
 //   destroy (single_value)
@@ -714,8 +697,6 @@ fn gpa_arena_allocator_fn() !void {
 
     // playing_with_a_slice(slice);
 }
-
-
 // Comptime is a way to avoid the pre-processor.
 // The idea is simple: run code at compilation.
 
@@ -748,7 +729,6 @@ var list = MyList{
 };
 
 list.items[0] = 10;
-
 const available_os = enum { OpenBSD, Linux };
 const myos = available_os.OpenBSD;
 
@@ -767,7 +747,6 @@ const myprint = switch(myos) {
     .OpenBSD => std.debug.print,
     .Linux => std.log.info,
 }
-
 const std = @import("std");
 const expect = std.testing.expect;
 
@@ -781,9 +760,7 @@ pub fn some_function() bool {
 test "returns true" {
     expect(false == some_function());
 }
-
 const Value = enum { zero, stuff, blah };
 if (@enumToInt(Value.zero)  == 0) { ... }
 if (@enumToInt(Value.stuff) == 1) { ... }
 if (@enumToInt(Value.blah)  == 2) { ... }
-
