@@ -17,10 +17,7 @@ def hash_image(path: Path) -> str | None:
 
 def main():
     if len(sys.argv) <= 1:
-        print(
-            "Error: Missing argument. \n"
-            + "Usage: image-hashing.py FILE [FILE ...]"
-        )
+        print("Error: Missing argument. \n" + "Usage: image-hashing.py FILE [FILE ...]")
         sys.exit(1)
 
     for arg in sys.argv[1:]:
@@ -32,7 +29,7 @@ def main():
 
         hash_value = hash_image(path)
         if hash_value is not None:
-            print(f"{hash_value} {path.resolve()}")
+            print(f"{hash_value} {path}")
 
 
 if __name__ == "__main__":
