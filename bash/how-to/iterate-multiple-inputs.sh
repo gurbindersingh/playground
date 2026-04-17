@@ -65,6 +65,10 @@ find . -name "*.jpg" -print0 | while IFS='' read -r -d '' f; do mv -- "$f" "$(di
 # <prefix>.<name>.<ext> prefix appears more than once, then move the first
 # match for each duplicate prefix to a target directory.
 # `grep -m1` stops after the first match — no need for `head -1`.
+# Spaces in filenames are not an issue: ls -1 outputs one filename per line
+# regardless of spaces, and IFS='' read -r reads the whole line without
+# splitting — so a prefix like "my file" is passed intact. This is why
+# `for prefix in $(cmd)` would break here but `while read` does not.
 # Subshell caveat from above still applies.
 # Caveat: if a prefix contains regex metacharacters (e.g. `+`, `[`), the grep
 # pattern may misbehave — in practice prefixes are plain alphanumeric strings.
