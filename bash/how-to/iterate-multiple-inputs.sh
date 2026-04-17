@@ -1,5 +1,5 @@
-# Example showing how rename each matched file to its SHA-256 hash, preserving
-# the extension. Example: photo.jpg → e3b0c442...b855.jpg
+# Example showing how to rename each matched file to its SHA-256 hash,
+# preserving the extension. Example: photo.jpg → e3b0c442...b855.jpg
 #
 # shasum -a 256 outputs "<64-hex-chars>  <path>"; awk '{print $1}' or cut -d "
 # " -f1 extracts just the hash. ${f##*.} strips everything up to and including
