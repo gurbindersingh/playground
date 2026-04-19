@@ -9,4 +9,4 @@ fi
 
 snapshot="$1"
 
-restic --insecure-no-password ls "$snapshot"
+restic ls "$snapshot"

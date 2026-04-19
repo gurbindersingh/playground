@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-restic --insecure-no-password forget \
+echo "[INFO] Pruning old backups."
+restic forget \
   --prune \
-  --keep-daily 7 \
-  --keep-weekly 4 \
+  --keep-weekly 26 \
   --keep-monthly 12 \
-  --keep-yearly 3 #--dry-run
+  --keep-yearly 5
 echo ""
-restic --insecure-no-password check
+restic check

@@ -9,10 +9,24 @@ fi
 
 backup_sources=("$@")
 
-restic \
-  --insecure-no-password backup \
+if [[ ! -e "${RESTIC_REPOSITORY:?}" ]]; then
+  read -rp "Repository '$RESTIC_REPOSITORY' not found. Initialize now? (y/n) " confirm
+
+  if [[ "$confirm" == "y" ]]; then
+    echo "[INFO] Initializing repository '$RESTIC_REPOSITORY'."
+    restic init
+  fi
+fi
+
+if [[ ! -e "${RESTIC_REPOSITORY:?}" ]]; then
+  echo "[ERROR] Repository not found. Not running backup." >&2
+  exit 1
+fi
+
+echo "[INFO] Creating backups of ${backup_sources[*]} at $RESTIC_REPOSITORY"
+restic backup \
   --skip-if-unchanged \
-  --exclude-file "$HOME/.configs/restic-exclude-cloud" \
+  --exclude-file "${exclude_file:?}" \
   "${backup_sources[@]:?}"
 # --dry-run \
-restic --insecure-no-password check
+restic check
