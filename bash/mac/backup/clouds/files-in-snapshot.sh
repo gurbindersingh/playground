@@ -7,10 +7,6 @@ if [[ $# -lt 1 ]]; then
   exit 1
 fi
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/cloud-backup.sh"
-[ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
-. "$config"
-
 snapshot="$1"
 
 restic --insecure-no-password ls "$snapshot"
