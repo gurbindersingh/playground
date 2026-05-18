@@ -23,7 +23,7 @@ for drive in "${drives[@]:?}"; do
     export RESTIC_REPOSITORY="$drive/cloud_backups/"
     ./backup.sh "${clouds[@]:?}"
     ./forget-snapshots.sh
-    ./list-snapshots.sh
+    #./list-snapshots.sh
   else
     echo "[INFO] Drive '$drive' is not connected"
     exit 0
