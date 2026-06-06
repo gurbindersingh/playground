@@ -19,6 +19,7 @@ for file in "${files[@]}"; do
   # Replace the suffix of the file
   url_file="${file/%webloc/url}"
 
+  url=$(url-decode "$url")
   echo "[InternetShortcut]" >"$url_file"
   echo "URL=$url" >>"$url_file"
 done
