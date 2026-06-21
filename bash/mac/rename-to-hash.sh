@@ -21,22 +21,22 @@ for file in "${files[@]}"; do
   old_name=$(basename "$file")
   # Use bash parameter expansion to replace the old name in the file path with
   # the new name.
-  new_name="${file/"${old_name}"/"${hash}.${extension}"}"
+  #new_name="${file/"${old_name}"/"${hash}.${extension}"}"
+  new_name="${file/"${old_name}"/"${hash}"}"
   # echo "Basename: $old_name"
 
-  if [[ "$file" == "$new_name" ]]; then
+  if [[ "$file" == "$new_name.$extension" ]]; then
     echo "File '$file' is already hashed. Skipping."
     continue
   fi
 
-  if [[ -e "$new_name" ]]; then
-    echo "File '$new_name' already exists. Skipping '$old_name'."
-    continue
+  if [[ -e "$new_name.$extension" ]]; then
+    new_name="$new_name.$(date +'%F_%H%M%S')"
   fi
 
   printf "%s\n" "[INFO] Backing up files to '${backup_location}'."
   rsync -a "$file" "$backup_location"
 
   # echo "Renaming $file -> $new_name"
-  mv -v "$file" "$new_name"
+  mv -vn "$file" "$new_name.$extension"
 done
