@@ -20,6 +20,11 @@ for file in "${files[@]}"; do
   url_file="${file/%webloc/url}"
 
   url=$(url-decode "$url")
+  if [[ -f "$url_file" ]]; then
+    echo "[ERROR] File '$url_file' already exists."
+    exit 1
+  fi
+  echo "[INFO] Converting file '$file'"
   echo "[InternetShortcut]" >"$url_file"
   echo "URL=$url" >>"$url_file"
 done
