@@ -8,6 +8,7 @@ if [[ $# -le 0 ]]; then
 fi
 
 files=("$@")
+exit_code=0
 
 for file in "${files[@]}"; do
   # Extract the URL from the webloc file.
@@ -22,9 +23,10 @@ for file in "${files[@]}"; do
   url=$(url-decode "$url")
   if [[ -f "$url_file" ]]; then
     echo "[ERROR] File '$url_file' already exists."
-    exit 1
+    exit_code=1
   fi
   echo "[INFO] Converting file '$file'"
   echo "[InternetShortcut]" >"$url_file"
   echo "URL=$url" >>"$url_file"
 done
+exit "$exit_code"
