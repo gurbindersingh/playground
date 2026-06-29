@@ -24,6 +24,7 @@ for file in "${files[@]}"; do
   if [[ -f "$url_file" ]]; then
     echo "[ERROR] File '$url_file' already exists."
     exit_code=1
+    continue
   fi
   echo "[INFO] Converting file '$file'"
   echo "[InternetShortcut]" >"$url_file"
