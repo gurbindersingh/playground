@@ -17,7 +17,8 @@ for file in "${files[@]}"; do
   hash="$(md5 -r "$file" | awk '{print $1}')"
 
   # Split on every dot and get the last string in the list.
-  extension="$(awk -F '.' '{print $NF}' <<<"$file")"
+  # extension="$(awk -F '.' '{print $NF}' <<<"$file")"
+  extension="${file##*.}"
   old_name=$(basename "$file")
   # Use bash parameter expansion to replace the old name in the file path with
   # the new name.
