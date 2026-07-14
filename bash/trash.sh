@@ -5,8 +5,9 @@ usage() {
   echo "Usage: $(basename "$0") [OPTIONS] [FILE...]"
   echo ""
   echo "  Option:"
-  echo "    -e  Empty bin"
   echo "    -l  List files in bin"
+  echo "    -p  Prune files older than 90 days"
+  echo "    -e  Empty bin"
   echo "    -h  Show help"
   exit "$1"
 }
@@ -18,7 +19,8 @@ error() {
 
 list_files() {
   echo "Files in trash bin:"
-  find "$trash_bin"
+  eza -lA -s new "$trash_bin"
+  echo ""
   echo "Total size: $(du -hs "$trash_bin/")"
   exit 0
 }
@@ -39,6 +41,22 @@ empty_bin() {
   exit 0
 }
 
+prune() {
+  file_count="$(find "$trash_bin" -type f -mtime +90 | wc -l)"
+
+  if [[ $file_count -lt 1 ]]; then
+    echo "No files older than 90 days."
+    exit 0
+  fi
+
+  read -rp "Prune old files ($file_count files will be deleted)? (y/n) " confirm
+
+  if [[ $confirm =~ [yY] ]]; then
+    find "$trash_bin" -type f -mtime +90 -print -delete
+  fi
+  exit 0
+}
+
 # =============================================================================
 # Main script
 # =============================================================================
@@ -48,7 +66,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 trash_bin="$HOME/.trash-bin"
-options=':hle'
+options=':hlep'
 
 if [[ ! -e "$trash_bin" ]]; then
   echo "Creating $trash_bin"
@@ -65,6 +83,9 @@ while getopts "${options}" arg; do
     ;;
   l)
     list_files
+    ;;
+  p)
+    prune
     ;;
   :)
     error "Option -$OPTARG expects an argument." 2
