@@ -72,6 +72,7 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
                     print(f"Updated archived status for show {show}.")
             if entry.get("ep_watch_count"):
                 oldValue = show_data["total_episodes_watched"]
+                # Some rows seem to reset values so we'll take the maximum
                 show_data["total_episodes_watched"] = max(
                     int(entry["ep_watch_count"]), show_data["total_episodes_watched"]
                 )
