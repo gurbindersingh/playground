@@ -1,7 +1,16 @@
 import csv
 import json
+from datetime import datetime, timezone
+from typing import Dict
 
 from utils.path_utils import path_from_project_root
+
+
+def epoch_seconds_to_date_string(seconds_since_epoch):
+    """Convert epoch seconds to the timestamp format used by show data."""
+    return datetime.fromtimestamp(seconds_since_epoch, tz=timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 
 def new_show(name):
@@ -32,7 +41,7 @@ def write_json(data, file_path: str):
         json.dump(data, json_file, indent=2)
 
 
-def aggregate_watch_data(aggregated, file_path: str):
+def aggregate_show_data(aggregated: Dict, file_path: str):
     print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
 
@@ -45,7 +54,7 @@ def aggregate_watch_data(aggregated, file_path: str):
         if show not in aggregated:
             aggregated[show] = new_show(show)
 
-        show_data = aggregated[show]
+        show_data: Dict = aggregated[show]
         # print(f"Show data before: {show_data}")
 
         # Update the created_at timestamp only it is empty or if the new
@@ -70,7 +79,9 @@ def aggregate_watch_data(aggregated, file_path: str):
                     print(f"Updated archived status for show {show}.")
             if entry.get("ep_watch_count"):
                 oldValue = show_data["total_episodes_watched"]
-                show_data["total_episodes_watched"] = int(entry["ep_watch_count"])
+                show_data["total_episodes_watched"] = max(
+                    int(entry["ep_watch_count"]), show_data["total_episodes_watched"]
+                )
                 show_data["updated_at"] = entry["updated_at"]
                 if show_data["total_episodes_watched"] != oldValue:
                     print(f"Updated episode count for show {show}.")
@@ -93,11 +104,16 @@ def aggregate_watch_data(aggregated, file_path: str):
 
         for season, episode in episode_pairs:
             if episode is not None:
-                # The same episode with a different timestamp is a valid entry since we may rewatch a show.
+                # The same episode with a different timestamp is a valid entry
+                # since we may rewatch a show.
                 watched_entry = {
                     "season": season,
                     "episode": episode,
                     "updated_at": entry["updated_at"],
+                    # The show name is here so that when we run a diff tool, we
+                    # can actually see for what show the episodes were
+                    # modified.
+                    "show": show,
                 }
                 if watched_entry not in show_data["episodes_watched"]:
                     show_data["episodes_watched"].append(watched_entry)
@@ -106,20 +122,32 @@ def aggregate_watch_data(aggregated, file_path: str):
     return aggregated
 
 
+def aggregate_movie_data(aggregated: Dict, file_path: str):
+    return
+
+
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
 def main():
     aggregated = {}
     print("=== Pass 1 ===")
-    aggregate_watch_data(aggregated, "data/tvtime/tracking-prod-records-v2.csv")
+    aggregate_show_data(aggregated, "data/tvtime/tracking-prod-records-v2.csv")
     write_json(aggregated, "data/tvtime/watch_data_1.json")
     print("=== Pass 2 ===")
-    aggregate_watch_data(aggregated, "data/tvtime/show_seen_episode_latest.csv")
+    aggregate_show_data(aggregated, "data/tvtime/show_seen_episode_latest.csv")
     write_json(aggregated, "data/tvtime/watch_data_2.json")
     print("=== Pass 3 ===")
-    aggregate_watch_data(aggregated, "data/tvtime/followed_tv_show.csv")
+    aggregate_show_data(aggregated, "data/tvtime/followed_tv_show.csv")
     write_json(aggregated, "data/tvtime/watch_data_3.json")
     print("=== Pass 4 ===")
+    aggregate_show_data(aggregated, "data/tvtime/seen_episode_latest.csv")
+    write_json(aggregated, "data/tvtime/watch_data_4.json")
+    print("=== Pass 5 ===")
+    aggregate_show_data(aggregated, "data/tvtime/tracking-prod-records.csv")
+    write_json(aggregated, "data/tvtime/watch_data_5.json")
+    print("=== Pass 6 ===")
+    aggregate_movie_data(aggregated, "data/tvtime/tracking-prod-records.csv")
+    write_json(aggregated, "data/tvtime/watch_data_5.json")
 
 
 if __name__ == "__main__":
