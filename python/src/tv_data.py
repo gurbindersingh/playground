@@ -32,9 +32,8 @@ def write_json(data, file_path: str):
         json.dump(data, json_file, indent=2)
 
 
-def aggregate_watch_data(file_path: str):
+def aggregate_watch_data(aggregated, file_path: str):
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
-    aggregated = {}
 
     for entry in raw_watch_data:
         print("Entry: ", entry)
@@ -137,8 +136,9 @@ def aggregate_episode_and_follow_status(aggregated, file_path: str):
 
 
 def main():
-    aggregated = aggregate_watch_data("data/tvtime/tracking-prod-records-v2.csv")
-    write_json(aggregated, "data/tvtime/watch_data.json")
+    aggregated = {}
+    aggregate_watch_data(aggregated, "data/tvtime/tracking-prod-records-v2.csv")
+    write_json(aggregated, "data/tvtime/watch_data_1.json")
     aggregate_follow_status(aggregated, "data/tvtime/followed_tv_show.csv")
     write_json(aggregated, "data/tvtime/watch_data_2.json")
     aggregate_episode_and_follow_status(aggregated, "data/tvtime/user_tv_show_data.csv")
