@@ -40,7 +40,7 @@ def aggregate_watch_data(aggregated, file_path: str):
         if not entry["series_name"]:
             continue
         # print("Entry: ", entry)
-        show = entry["series_name"]
+        show = entry["series_name"].strip()
 
         if show not in aggregated:
             aggregated[show] = new_show(show)
@@ -60,20 +60,27 @@ def aggregate_watch_data(aggregated, file_path: str):
         # entry is more recent
         if entry.get("updated_at") and (entry["updated_at"] >= show_data["updated_at"]):
             if entry.get("is_archived"):
-                show_data["is_archived"] = entry["is_archived"] == "true"
+                oldValue = show_data["is_archived"]
+                show_data["is_archived"] = entry["is_archived"].lower().strip() in [
+                    "true",
+                    "1",
+                ]
                 show_data["updated_at"] = entry["updated_at"]
+                if show_data["is_archived"] != oldValue:
+                    print(f"Updated archived status for show {show}.")
             if entry.get("ep_watch_count"):
-                show_data["total_episodes_watched"] = max(
-                    show_data["total_episodes_watched"], int(entry["ep_watch_count"])
-                )
+                oldValue = show_data["total_episodes_watched"]
+                show_data["total_episodes_watched"] = int(entry["ep_watch_count"])
                 show_data["updated_at"] = entry["updated_at"]
+                if show_data["total_episodes_watched"] != oldValue:
+                    print(f"Updated episode count for show {show}.")
 
         # For some reason the two season/episode pairs sometimes use different
         # season and episode numbers. For completeness we'll save both if they
         # differ.
         episode_pairs = [
             (
-                int(entry["s_no"]) if entry.get("so_no") else -1,
+                int(entry["s_no"]) if entry.get("s_no") else -1,
                 int(entry["ep_no"]) if entry.get("ep_no") else None,
             ),
         ]
