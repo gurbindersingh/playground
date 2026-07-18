@@ -10,8 +10,8 @@ def new_show(name):
         "type": "show",
         "total_episodes_watched": -1,
         "is_archived": False,
-        "created_at": "0000-01-01 00:00:00",
-        "updated_at": "0000-01-01 00:00:00",
+        "created_at": "",
+        "updated_at": "0000-00-00 00:00:00",
         # A list of dictionaries containing the season, episode and date watched
         "episodes_watched": [],
     }
@@ -36,34 +36,44 @@ def aggregate_watch_data(file_path: str):
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
     aggregated = {}
 
-    for watch_entry in raw_watch_data:
-        print(watch_entry)
-        show = watch_entry["series_name"]
+    for entry in raw_watch_data:
+        print("Entry: ", entry)
+        show = entry["series_name"]
 
         if show not in aggregated:
             aggregated[show] = new_show(show)
 
         show_data = aggregated[show]
-        # If the created_at entry exists and is non-empty
-        if watch_entry["created_at"] and show_data["created_at"] == "0000-01-01 00:00":
-            show_data["created_at"] = watch_entry["created_at"]
+        print(f"Show data before: {show_data}")
 
-        if watch_entry["updated_at"] > show_data["updated_at"]:
-            show_data["updated_at"] = watch_entry["updated_at"]
-            if watch_entry["is_archived"]:
-                show_data["is_archived"] = watch_entry["is_archived"] == "true"
+        # Update the created_at timestamp only it is empty or if the new
+        # timestamp is older.
+        if entry["created_at"] and (
+            not show_data["created_at"] or entry["created_at"] < show_data["created_at"]
+        ):
+            show_data["created_at"] = entry["created_at"]
 
-        if watch_entry["ep_watch_count"]:
-            show_data["total_episodes_watched"] = max(
-                show_data["total_episodes_watched"], int(watch_entry["ep_watch_count"])
-            )
+        # Only update the archived status and number of watched episodes if the
+        # entry is more recent
+        if entry["updated_at"] and (entry["updated_at"] >= show_data["updated_at"]):
+            if entry["is_archived"]:
+                show_data["is_archived"] = entry["is_archived"] == "true"
+                show_data["updated_at"] = entry["updated_at"]
+            if entry["ep_watch_count"]:
+                show_data["total_episodes_watched"] = max(
+                    show_data["total_episodes_watched"], int(entry["ep_watch_count"])
+                )
+                show_data["updated_at"] = entry["updated_at"]
 
+        # For some reason the two season/episode pairs sometimes use different
+        # season and episode numbers. For completeness we'll save both if they
+        # differ.
         episode_pairs = [
-            (watch_entry["s_no"], watch_entry["ep_no"]),
+            (entry["s_no"], entry["ep_no"]),
         ]
         alternate_pair = (
-            watch_entry["season_number"],
-            watch_entry["episode_number"],
+            entry["season_number"],
+            entry["episode_number"],
         )
         if alternate_pair != episode_pairs[0]:
             episode_pairs.append(alternate_pair)
@@ -74,11 +84,12 @@ def aggregate_watch_data(file_path: str):
                     {
                         "season": int(season),
                         "episode": int(episode),
-                        "updated_at": watch_entry["updated_at"],
+                        "updated_at": entry["updated_at"],
                     }
                 )
 
-        print(show_data)
+        print(f"Show data after:  {show_data}")
+        print("---")
     return aggregated
 
 
