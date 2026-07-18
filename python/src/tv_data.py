@@ -69,21 +69,24 @@ def aggregate_watch_data(file_path: str):
         # season and episode numbers. For completeness we'll save both if they
         # differ.
         episode_pairs = [
-            (entry["s_no"], entry["ep_no"]),
+            (
+                int(entry["s_no"] or -1),
+                int(entry["ep_no"]) if entry["ep_no"] else None,
+            ),
         ]
         alternate_pair = (
-            entry["season_number"],
-            entry["episode_number"],
+            int(entry["season_number"] or -1),
+            int(entry["episode_number"]) if entry["episode_number"] else None,
         )
         if alternate_pair != episode_pairs[0]:
             episode_pairs.append(alternate_pair)
 
         for season, episode in episode_pairs:
-            if season and episode:
+            if episode is not None:
                 show_data["episodes_watched"].append(
                     {
-                        "season": int(season),
-                        "episode": int(episode),
+                        "season": season,
+                        "episode": episode,
                         "updated_at": entry["updated_at"],
                     }
                 )
