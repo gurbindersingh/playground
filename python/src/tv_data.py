@@ -105,54 +105,20 @@ def aggregate_watch_data(aggregated, file_path: str):
     return aggregated
 
 
-def aggregate_follow_status(aggregated, file_path: str):
-    raw_follow_data = read_csv_data(path_from_project_root(file_path))
-
-    for follow_entry in raw_follow_data:
-        # print(follow_entry)
-        show = follow_entry["tv_show_name"]
-        archived = follow_entry["archived"]
-        if show not in aggregated:
-            print(f"Show {show} not in aggregated data.")
-            aggregated[show] = new_show(show)
-        updated_at = follow_entry["updated_at"]
-        if updated_at > aggregated[show]["updated_at"]:
-            aggregated[show]["updated_at"] = updated_at
-            if archived:
-                aggregated[show]["is_archived"] = archived == "1"
-
-
-def aggregate_episode_and_follow_status(aggregated, file_path: str):
-    raw_data = read_csv_data(path_from_project_root(file_path))
-
-    for entry in raw_data:
-        print(entry)
-        show = entry["tv_show_name"]
-        episodes_seen = entry["nb_episodes_seen"]
-        updated_at = entry.get("updated_at", "")
-
-        if show not in aggregated:
-            print(f"Show {show} not in aggregated data.")
-            aggregated[show] = new_show(show)
-
-        is_newer_update = updated_at > aggregated[show]["updated_at"]
-        if is_newer_update:
-            aggregated[show]["updated_at"] = updated_at
-        if episodes_seen:
-            aggregated[show]["total_episodes_watched"] = max(
-                int(episodes_seen), aggregated[show]["total_episodes_watched"]
-            )
-        print(aggregated[show])
-
-
+# TODO: Create smaller test files to check if the script does what it is
+# supposed to.
 def main():
     aggregated = {}
+    print("=== Pass 1 ===")
     aggregate_watch_data(aggregated, "data/tvtime/tracking-prod-records-v2.csv")
     write_json(aggregated, "data/tvtime/watch_data_1.json")
-    aggregate_follow_status(aggregated, "data/tvtime/followed_tv_show.csv")
+    print("=== Pass 2 ===")
+    aggregate_watch_data(aggregated, "data/tvtime/show_seen_episode_latest.csv")
     write_json(aggregated, "data/tvtime/watch_data_2.json")
-    aggregate_episode_and_follow_status(aggregated, "data/tvtime/user_tv_show_data.csv")
+    print("=== Pass 3 ===")
+    aggregate_watch_data(aggregated, "data/tvtime/followed_tv_show.csv")
     write_json(aggregated, "data/tvtime/watch_data_3.json")
+    print("=== Pass 4 ===")
 
 
 if __name__ == "__main__":
