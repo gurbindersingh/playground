@@ -6,13 +6,14 @@ from utils.path_utils import path_from_project_root
 
 def new_show(name):
     return {
-        "show": name,
+        "name": name,
+        "type": "show",
         "total_episodes_watched": -1,
+        "is_archived": False,
+        "created_at": "0000-01-01 00:00:00",
+        "updated_at": "0000-01-01 00:00:00",
         # A list of dictionaries containing the season, episode and date watched
         "episodes_watched": [],
-        "is_archived": False,
-        "created_at": "0000-01-01 00:00",
-        "updated_at": "0000-01-01 00:00",
     }
 
 
