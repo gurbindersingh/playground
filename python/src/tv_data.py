@@ -116,7 +116,35 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
 
 
 def aggregate_movie_data(aggregated: Dict, file_path: str):
-    return
+    print(f"Running aggregation on file {file_path}")
+    raw_watch_data = read_csv_data(path_from_project_root(file_path))
+
+    for entry in raw_watch_data:
+        if not entry.get("movie_name"):
+            continue
+
+        movie = entry["movie_name"].strip()
+
+        if movie not in aggregated:
+            aggregated[movie] = {
+                "name": movie,
+                "type": "movie",
+                "created_at": "",
+                "updated_at": "0000-00-00 00:00:00",
+            }
+
+        movie_data: Dict = aggregated[movie]
+
+        if entry.get("created_at") and (
+            not movie_data["created_at"]
+            or entry["created_at"] < movie_data["created_at"]
+        ):
+            movie_data["created_at"] = entry["created_at"]
+
+        if entry.get("updated_at") and entry["updated_at"] >= movie_data["updated_at"]:
+            movie_data["updated_at"] = entry["updated_at"]
+
+    return aggregated
 
 
 # TODO: Create smaller test files to check if the script does what it is
@@ -140,7 +168,11 @@ def main():
     write_json(aggregated, "data/tvtime/watch_data_5.json")
     print("=== Pass 6 ===")
     aggregate_movie_data(aggregated, "data/tvtime/tracking-prod-records.csv")
-    write_json(aggregated, "data/tvtime/watch_data_5.json")
+    write_json(aggregated, "data/tvtime/watch_data_6.json")
+    print("=== Pass 7 ===")
+    aggregate_show_data(aggregated, "data/tvtime/user_tv_show_data.csv")
+    write_json(aggregated, "data/tvtime/watch_data_7.json")
+    write_json(aggregated, "data/tvtime/watch_data_final.json")
 
 
 if __name__ == "__main__":
