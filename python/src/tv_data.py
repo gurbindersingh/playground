@@ -33,32 +33,36 @@ def write_json(data, file_path: str):
 
 
 def aggregate_watch_data(aggregated, file_path: str):
+    print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
 
     for entry in raw_watch_data:
-        print("Entry: ", entry)
+        if not entry["series_name"]:
+            continue
+        # print("Entry: ", entry)
         show = entry["series_name"]
 
         if show not in aggregated:
             aggregated[show] = new_show(show)
 
         show_data = aggregated[show]
-        print(f"Show data before: {show_data}")
+        # print(f"Show data before: {show_data}")
 
         # Update the created_at timestamp only it is empty or if the new
         # timestamp is older.
-        if entry["created_at"] and (
+        if entry.get("created_at") and (
             not show_data["created_at"] or entry["created_at"] < show_data["created_at"]
         ):
             show_data["created_at"] = entry["created_at"]
+            print(f"Updated 'created_at' timestamp for show {show}.")
 
         # Only update the archived status and number of watched episodes if the
         # entry is more recent
-        if entry["updated_at"] and (entry["updated_at"] >= show_data["updated_at"]):
-            if entry["is_archived"]:
+        if entry.get("updated_at") and (entry["updated_at"] >= show_data["updated_at"]):
+            if entry.get("is_archived"):
                 show_data["is_archived"] = entry["is_archived"] == "true"
                 show_data["updated_at"] = entry["updated_at"]
-            if entry["ep_watch_count"]:
+            if entry.get("ep_watch_count"):
                 show_data["total_episodes_watched"] = max(
                     show_data["total_episodes_watched"], int(entry["ep_watch_count"])
                 )
@@ -69,13 +73,13 @@ def aggregate_watch_data(aggregated, file_path: str):
         # differ.
         episode_pairs = [
             (
-                int(entry["s_no"] or -1),
-                int(entry["ep_no"]) if entry["ep_no"] else None,
+                int(entry["s_no"]) if entry.get("so_no") else -1,
+                int(entry["ep_no"]) if entry.get("ep_no") else None,
             ),
         ]
         alternate_pair = (
-            int(entry["season_number"] or -1),
-            int(entry["episode_number"]) if entry["episode_number"] else None,
+            int(entry["season_number"]) if entry.get("season_number") else -1,
+            int(entry["episode_number"]) if entry.get("episode_number") else None,
         )
         if alternate_pair != episode_pairs[0]:
             episode_pairs.append(alternate_pair)
@@ -90,8 +94,7 @@ def aggregate_watch_data(aggregated, file_path: str):
                     }
                 )
 
-        print(f"Show data after:  {show_data}")
-        print("---")
+        # print(f"Show data after:  {show_data}\n---")
     return aggregated
 
 
