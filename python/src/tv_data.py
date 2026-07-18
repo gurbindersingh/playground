@@ -6,13 +6,6 @@ from typing import Dict
 from utils.path_utils import path_from_project_root
 
 
-def epoch_seconds_to_date_string(seconds_since_epoch):
-    """Convert epoch seconds to the timestamp format used by show data."""
-    return datetime.fromtimestamp(seconds_since_epoch, tz=timezone.utc).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
-
 def new_show(name):
     return {
         "name": name,
@@ -38,7 +31,7 @@ def write_json(data, file_path: str):
         mode="w",
         encoding="utf-8",
     ) as json_file:
-        json.dump(data, json_file, indent=2)
+        json.dump(data, json_file, indent=2, ensure_ascii=False)
 
 
 def aggregate_show_data(aggregated: Dict, file_path: str):
@@ -46,7 +39,7 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
 
     for entry in raw_watch_data:
-        if not entry["series_name"]:
+        if not entry.get("series_name"):
             continue
         # print("Entry: ", entry)
         show = entry["series_name"].strip()
