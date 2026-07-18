@@ -93,13 +93,14 @@ def aggregate_watch_data(aggregated, file_path: str):
 
         for season, episode in episode_pairs:
             if episode is not None:
-                show_data["episodes_watched"].append(
-                    {
-                        "season": season,
-                        "episode": episode,
-                        "updated_at": entry["updated_at"],
-                    }
-                )
+                # The same episode with a different timestamp is a valid entry since we may rewatch a show.
+                watched_entry = {
+                    "season": season,
+                    "episode": episode,
+                    "updated_at": entry["updated_at"],
+                }
+                if watched_entry not in show_data["episodes_watched"]:
+                    show_data["episodes_watched"].append(watched_entry)
 
         # print(f"Show data after:  {show_data}\n---")
     return aggregated
