@@ -9,7 +9,9 @@ def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> Dict:
     data: Dict[str, str | bool | list | int] = {
         "name": name,
         "type": type,
-        "created_at": "",
+        # Using these default values (even when they are not valid date-times)
+        # makes the overwrite conditions simpler and sorting easier.
+        "created_at": "9999-99-99 99:99:99",
         "updated_at": "0000-00-00 00:00:00",
     }
     if type == "show":
@@ -58,11 +60,8 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
         show_data: Dict = aggregated[show]
         # print(f"Show data before: {show_data}")
 
-        # Update the created_at timestamp only it is empty or if the new
-        # timestamp is older.
-        if entry.get("created_at") and (
-            not show_data["created_at"] or entry["created_at"] < show_data["created_at"]
-        ):
+        # Update the created_at timestamp with the oldest created_at timestamp found
+        if entry.get("created_at") and entry["created_at"] < show_data["created_at"]:
             show_data["created_at"] = entry["created_at"]
             print(f"Updated 'created_at' timestamp for show {show}.")
 
