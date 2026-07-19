@@ -1,22 +1,30 @@
 import csv
 import json
-from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Literal
 
 from utils.path_utils import path_from_project_root
 
 
-def new_show(name):
-    return {
+def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> Dict:
+    data: Dict[str, str | bool | list | int] = {
         "name": name,
-        "type": "show",
-        "total_episodes_watched": -1,
-        "is_archived": False,
+        "type": type,
         "created_at": "",
         "updated_at": "0000-00-00 00:00:00",
-        # A list of dictionaries containing the season, episode and date watched
-        "episodes_watched": [],
     }
+    if type == "show":
+        data.update(
+            {
+                "is_archived": False,
+                "total_episodes_watched": -1,
+                # A list of dictionaries containing the season, episode and date watched
+                "episodes_watched": [],
+            }
+        )
+    elif type == "movie":
+        data.update({"watched": True})
+
+    return data
 
 
 def read_csv_data(file_path):
@@ -45,7 +53,7 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
         show = entry["series_name"].strip()
 
         if show not in aggregated:
-            aggregated[show] = new_show(show)
+            aggregated[show] = new_watch_data(show)
 
         show_data: Dict = aggregated[show]
         # print(f"Show data before: {show_data}")
@@ -127,12 +135,7 @@ def aggregate_movie_data(aggregated: Dict, file_path: str):
         movie = entry["movie_name"].strip()
 
         if movie not in aggregated:
-            aggregated[movie] = {
-                "name": movie,
-                "type": "movie",
-                "created_at": "",
-                "updated_at": "0000-00-00 00:00:00",
-            }
+            aggregated[movie] = new_watch_data(movie, "movie")
 
         movie_data: Dict = aggregated[movie]
 
