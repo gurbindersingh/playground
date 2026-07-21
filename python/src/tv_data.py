@@ -1,6 +1,6 @@
 import csv
 import json
-from typing import Dict, Literal
+from typing import Dict, List, Literal
 
 from utils.path_utils import path_from_project_root
 
@@ -150,6 +150,14 @@ def aggregate_movie_data(aggregated: Dict, file_path: str):
     return aggregated
 
 
+def sort_episodes_asc(aggregated: Dict):
+    print("Sorting episode lists")
+    for entry in aggregated.values():
+        if entry.get("episodes_watched"):
+            episodes: List[Dict] = entry["episodes_watched"]
+            episodes.sort(key=lambda ep: (ep["season"], ep["episode"]))
+
+
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
 def main():
@@ -175,6 +183,8 @@ def main():
     print("=== Pass 7 ===")
     aggregate_show_data(aggregated, "data/tvtime/user_tv_show_data.csv")
     write_json(aggregated, "data/tvtime/watch_data_7.json")
+
+    sort_episodes_asc(aggregated)
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
 
