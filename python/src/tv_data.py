@@ -8,7 +8,6 @@ from utils.path_utils import path_from_project_root
 def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> Dict:
     data: Dict[str, str | bool | list | int] = {
         "name": name,
-        "type": type,
         # Using these default values (even when they are not valid date-times)
         # makes the overwrite conditions simpler and sorting easier.
         "created_at": "9999-99-99 99:99:99",
@@ -161,30 +160,29 @@ def sort_episodes_asc(aggregated: Dict):
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
 def main():
-    aggregated = {}
-    print("=== Pass 1 ===")
-    aggregate_show_data(aggregated, "data/tvtime/tracking-prod-records-v2.csv")
-    write_json(aggregated, "data/tvtime/watch_data_1.json")
-    print("=== Pass 2 ===")
-    aggregate_show_data(aggregated, "data/tvtime/show_seen_episode_latest.csv")
-    write_json(aggregated, "data/tvtime/watch_data_2.json")
-    print("=== Pass 3 ===")
-    aggregate_show_data(aggregated, "data/tvtime/followed_tv_show.csv")
-    write_json(aggregated, "data/tvtime/watch_data_3.json")
-    print("=== Pass 4 ===")
-    aggregate_show_data(aggregated, "data/tvtime/seen_episode_latest.csv")
-    write_json(aggregated, "data/tvtime/watch_data_4.json")
-    print("=== Pass 5 ===")
-    aggregate_show_data(aggregated, "data/tvtime/tracking-prod-records.csv")
-    write_json(aggregated, "data/tvtime/watch_data_5.json")
-    print("=== Pass 6 ===")
-    aggregate_movie_data(aggregated, "data/tvtime/tracking-prod-records.csv")
-    write_json(aggregated, "data/tvtime/watch_data_6.json")
-    print("=== Pass 7 ===")
-    aggregate_show_data(aggregated, "data/tvtime/user_tv_show_data.csv")
-    write_json(aggregated, "data/tvtime/watch_data_7.json")
+    shows = {}
+    movies = {}
+    aggregated = {"shows": shows, "movies": movies}
+    show_files = [
+        "tracking-prod-records-v2.csv",
+        "show_seen_episode_latest.csv",
+        "followed_tv_show.csv",
+        "seen_episode_latest.csv",
+        "tracking-prod-records.csv",
+        "user_tv_show_data.csv",
+    ]
+    pass_counter = 1
+    for file in show_files:
+        print(f"=== {pass_counter} ===")
+        aggregate_show_data(shows, f"data/tvtime/{file}")
+        write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
+        pass_counter += 1
 
-    sort_episodes_asc(aggregated)
+    print(f"=== Pass {pass_counter} ===")
+    sort_episodes_asc(shows)
+    aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
+    write_json(movies, "data/tvtime/watch_data_7.json")
+
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
 
