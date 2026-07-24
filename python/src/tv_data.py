@@ -182,6 +182,15 @@ def main():
     sort_episodes_asc(shows)
     aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
     write_json(movies, "data/tvtime/watch_data_7.json")
+    pass_counter += 1
+
+    print(f"=== Pass {pass_counter} ===")
+    aggregated = {
+        # NOTE: The return type of values() is not a normal list and so not
+        # serializable to JSON. We must convert it into a list first.
+        "shows": list(aggregated["shows"].values()),
+        "movies": list(aggregated["movies"].values()),
+    }
 
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
