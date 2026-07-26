@@ -153,19 +153,23 @@ def sort_episodes_asc(aggregated: Dict):
             episodes.sort(key=lambda ep: (ep["season"], ep["episode"]))
 
 
-def fix_episode_list(aggregated: List[Dict]):
-    print(f"Fixing episode lists ({len(aggregated)})")
-    for show in aggregated:
-        total_watched = show["total_episodes_watched"]
-        episode_list = show["episodes_watched"]
+def fix_episode_list(shows: List[Dict]):
+    print("Fixing episode lists")
+
+    for show in shows:
+        total_watched: int = show["total_episodes_watched"]
+        episode_list: List[Dict] = show["episodes_watched"]
+
         if total_watched < len(episode_list):
-            remove_duplicate_episode(show)
+            print(f"Removing duplicate episodes for {show['name']}")
+            show["episodes_watched"] = remove_duplicate_episode(episode_list)
+            episode_list = show["episodes_watched"]
+
         if total_watched != len(show["episodes_watched"]):
             print(
                 f"Discrapency for show {show['name']}:",
                 f"Total watched is {total_watched} but episode list contains {len(episode_list)}.",
             )
-            print("No duplicate episodes found.")
             i = 1
             for ep in episode_list:
                 print(f"{i}:", ep)
@@ -173,11 +177,10 @@ def fix_episode_list(aggregated: List[Dict]):
         print("-")
 
 
-def remove_duplicate_episode(show: Dict):
-    print(f"Removing duplicate episodes for {show['name']}")
+def remove_duplicate_episode(episodes_watched: List[Dict]):
     seen = set()
     episodes = []
-    for ep in show["episodes_watched"]:
+    for ep in episodes_watched:
         ep_key = (ep["season"], ep["episode"])
         if ep_key == (0, 0):
             continue
@@ -185,7 +188,7 @@ def remove_duplicate_episode(show: Dict):
             seen.add(ep_key)
             episodes.append(ep)
     print("Length of new episode list:", len(episodes))
-    show["episodes_watched"] = episodes
+    return episodes
 
 
 # TODO: Create smaller test files to check if the script does what it is
