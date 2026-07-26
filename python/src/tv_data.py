@@ -17,7 +17,7 @@ def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> Dict:
         data.update(
             {
                 "is_archived": False,
-                "total_episodes_watched": -1,
+                "total_episodes_watched": 0,
                 # A list of dictionaries containing the season, episode and date watched
                 "episodes_watched": [],
             }
@@ -110,10 +110,6 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
                     "season": season,
                     "episode": episode,
                     "updated_at": entry["updated_at"],
-                    # The show name is here so that when we run a diff tool, we
-                    # can actually see for what show the episodes were
-                    # modified.
-                    "show": show,
                 }
                 if watched_entry not in show_data["episodes_watched"]:
                     show_data["episodes_watched"].append(watched_entry)
@@ -157,6 +153,41 @@ def sort_episodes_asc(aggregated: Dict):
             episodes.sort(key=lambda ep: (ep["season"], ep["episode"]))
 
 
+def fix_episode_list(aggregated: List[Dict]):
+    print(f"Fixing episode lists ({len(aggregated)})")
+    for show in aggregated:
+        total_watched = show["total_episodes_watched"]
+        episode_list = show["episodes_watched"]
+        if total_watched < len(episode_list):
+            remove_duplicate_episode(show)
+        if total_watched != len(show["episodes_watched"]):
+            print(
+                f"Discrapency for show {show['name']}:",
+                f"Total watched is {total_watched} but episode list contains {len(episode_list)}.",
+            )
+            print("No duplicate episodes found.")
+            i = 1
+            for ep in episode_list:
+                print(f"{i}:", ep)
+                i += 1
+        print("-")
+
+
+def remove_duplicate_episode(show: Dict):
+    print(f"Removing duplicate episodes for {show['name']}")
+    seen = set()
+    episodes = []
+    for ep in show["episodes_watched"]:
+        ep_key = (ep["season"], ep["episode"])
+        if ep_key == (0, 0):
+            continue
+        if ep_key not in seen:
+            seen.add(ep_key)
+            episodes.append(ep)
+    print("Length of new episode list:", len(episodes))
+    show["episodes_watched"] = episodes
+
+
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
 def main():
@@ -181,16 +212,23 @@ def main():
     print(f"=== Pass {pass_counter} ===")
     sort_episodes_asc(shows)
     aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
-    write_json(movies, "data/tvtime/watch_data_7.json")
+    write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
     print(f"=== Pass {pass_counter} ===")
+    print("Flatten dictionary")
     aggregated = {
         # NOTE: The return type of values() is not a normal list and so not
         # serializable to JSON. We must convert it into a list first.
         "shows": list(aggregated["shows"].values()),
         "movies": list(aggregated["movies"].values()),
     }
+    pass_counter += 1
+
+    print(f"=== Pass {pass_counter} ===")
+    fix_episode_list(aggregated["shows"])
+    write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
+    pass_counter += 1
 
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
