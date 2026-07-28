@@ -1,12 +1,13 @@
 import csv
 import json
-from typing import Dict, List, Literal
+import os
+from typing import Literal
 
 from utils.path_utils import path_from_project_root
 
 
-def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> Dict:
-    data: Dict[str, str | bool | list | int] = {
+def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
+    data: dict[str, str | bool | list | int] = {
         "name": name,
         # Using these default values (even when they are not valid date-times)
         # makes the overwrite conditions simpler and sorting easier.
@@ -43,7 +44,7 @@ def write_json(data, file_path: str):
         json.dump(data, json_file, indent=2, ensure_ascii=False)
 
 
-def aggregate_show_data(aggregated: Dict, file_path: str):
+def aggregate_show_data(aggregated: dict, file_path: str):
     print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
 
@@ -56,7 +57,7 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
         if show not in aggregated:
             aggregated[show] = new_watch_data(show)
 
-        show_data: Dict = aggregated[show]
+        show_data: dict = aggregated[show]
         # print(f"Show data before: {show_data}")
 
         # Update the created_at timestamp with the oldest created_at timestamp found
@@ -118,7 +119,7 @@ def aggregate_show_data(aggregated: Dict, file_path: str):
     return aggregated
 
 
-def aggregate_movie_data(aggregated: Dict, file_path: str):
+def aggregate_movie_data(aggregated: dict, file_path: str):
     print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(path_from_project_root(file_path))
 
@@ -131,7 +132,7 @@ def aggregate_movie_data(aggregated: Dict, file_path: str):
         if movie not in aggregated:
             aggregated[movie] = new_watch_data(movie, "movie")
 
-        movie_data: Dict = aggregated[movie]
+        movie_data: dict = aggregated[movie]
 
         if entry.get("created_at") and (
             not movie_data["created_at"]
@@ -145,20 +146,20 @@ def aggregate_movie_data(aggregated: Dict, file_path: str):
     return aggregated
 
 
-def sort_episodes_asc(aggregated: Dict):
+def sort_episodes_asc(aggregated: dict):
     print("Sorting episode lists")
     for entry in aggregated.values():
         if entry.get("episodes_watched"):
-            episodes: List[Dict] = entry["episodes_watched"]
+            episodes: list[dict] = entry["episodes_watched"]
             episodes.sort(key=lambda ep: (ep["season"], ep["episode"]))
 
 
-def fix_episode_list(shows: List[Dict]):
+def fix_episode_list(shows: list[dict]):
     print("Fixing episode lists")
 
     for show in shows:
         total_watched: int = show["total_episodes_watched"]
-        episode_list: List[Dict] = show["episodes_watched"]
+        episode_list: list[dict] = show["episodes_watched"]
 
         if total_watched < len(episode_list):
             print(f"Removing duplicate episodes for {show['name']}")
@@ -177,7 +178,7 @@ def fix_episode_list(shows: List[Dict]):
         print("-")
 
 
-def remove_duplicate_episode(episodes_watched: List[Dict]):
+def remove_duplicate_episode(episodes_watched: list[dict]):
     seen = set()
     episodes = []
     for ep in episodes_watched:
