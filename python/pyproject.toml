@@ -8,6 +8,7 @@ dependencies = [
   "imagehash>=4.3.2",
   "pillow>=12.2.0",
   "pytest-playwright>=0.7.0",
+  "requests>=2.32.3",
 ]
 
 [project.scripts]

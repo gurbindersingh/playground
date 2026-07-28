@@ -1,7 +1,10 @@
 import csv
 import json
 import os
+import time
 from typing import Literal
+
+import requests
 
 from utils.path_utils import path_from_project_root
 
@@ -191,6 +194,44 @@ def remove_duplicate_episode(episodes_watched: list[dict]):
     print("Length of new episode list:", len(episodes))
     return episodes
 
+
+def fetch_tmdb_data(aggregated: dict):
+    print("Fetching data")
+    api_key = os.getenv("TMDB_TOKEN")
+    print(api_key)
+    headers = {"Authorization": f"Bearer {api_key}"}
+    data = {"shows": {}, "movies": {}}
+
+    endpoints = {
+        "shows": "https://api.themoviedb.org/3/search/tv",
+        "movies": "https://api.themoviedb.org/3/search/movie",
+    }
+
+    for media_type, endpoint in endpoints.items():
+        for entry in aggregated[media_type]:
+            results = []
+            page = 1
+            total_pages = 1
+
+            print(f"Fetching data for {entry['name']}")
+            while page <= total_pages:
+                print(f"Fetching page {page}")
+                response = requests.get(
+                    endpoint,
+                    headers=headers,
+                    params={"query": entry["name"], "page": page},
+                )
+                time.sleep(1 / 3)
+                response.raise_for_status()
+
+                result = response.json()
+                results.extend(result["results"])
+                total_pages = result["total_pages"]
+                page += 1
+
+            data[media_type][entry["name"]] = results
+
+    return data
 
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
