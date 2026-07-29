@@ -206,6 +206,13 @@ def remove_duplicate_episode(episodes_watched: list[dict]):
     return episodes
 
 
+def tmdb_lookup_title_and_year(name: str) -> tuple[str, str | None]:
+    match = re.fullmatch(r"(.+) \((\d{4})\)", name)
+    if match:
+        return match.group(1), match.group(2)
+    return name, None
+
+
 def fetch_tmdb_data(aggregated: dict):
     print("Fetching data")
     api_key = os.getenv("TMDB_TOKEN")
@@ -223,7 +230,7 @@ def fetch_tmdb_data(aggregated: dict):
             results = []
             page = 1
             total_pages = 1
-            query_name = re.sub(r" \(\d{4}\)$", "", entry["name"])
+            query_name, _ = tmdb_lookup_title_and_year(entry["name"])
 
             print(f"Fetching data for {entry['name']}")
             while page <= total_pages:
@@ -303,16 +310,23 @@ def filter_tmdb_data(data: dict):
     multiple_match_count = 0
 
     # For the first pass we only filter the data
-    for media_type, title_field, _, _ in media_types:
+    for media_type, title_field, _, release_date_field in media_types:
         for entity_title, tmdb_results in data[media_type].items():
             # Most TMDB results only have a single entry
             if len(tmdb_results) > 1:
-                # original_results = tmdb_results
-                exact_matches = [
+                lookup_title, lookup_year = tmdb_lookup_title_and_year(entity_title)
+                title_matches = [
                     match
                     for match in tmdb_results
-                    if match.get(title_field) == entity_title
+                    if match.get(title_field) == lookup_title
                 ]
+                year_matches = [
+                    match
+                    for match in title_matches
+                    if lookup_year
+                    and (match.get(release_date_field) or "").startswith(lookup_year)
+                ]
+                exact_matches = year_matches or title_matches
 
                 if exact_matches:
                     tmdb_results = exact_matches
@@ -353,24 +367,34 @@ def filter_tmdb_data(data: dict):
             if len(tmdb_results) <= 1:
                 continue
 
-            print(f"\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
+            print(f"\n\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
             for index, match in enumerate(tmdb_results, start=1):
                 release_date = match.get(release_date_field)
-                release_year = release_date[:4] if release_date else "<Unknown>"
-                print(f"{index}:")
-                print(f"Name: {match.get(title_field) or '<Unknown>'}")
+                tmdb_id = match.get("id")
+                print(f"{index}.")
+                print("-----")
                 print(
-                    f"Original name: {match.get(original_title_field) or '<Unknown>'}"
+                    f"{match.get(title_field) or '<Unknown>'} | "
+                    f"{match.get(original_title_field) or '<Unknown>'} | "
+                    f"{release_date or '<Unknown>'} | "
+                    f"{tmdb_id if tmdb_id is not None else '<Unknown>'}"
                 )
-                print(f"Release year: {release_year}")
                 print(f"Description: {match.get('overview') or '<Unknown>'}")
+                print("-----")
 
             while True:
-                choice = input("Choose a match by number: ")
+                choice = input(
+                    "Choose a match by number, or type s/skip to leave unresolved: "
+                ).strip()
+                if choice.lower() in ("s", "skip"):
+                    break
                 if choice.isdigit() and 1 <= int(choice) <= len(tmdb_results):
                     tmdb_results = [tmdb_results[int(choice) - 1]]
                     break
                 print(f"Enter a number from 1 to {len(tmdb_results)}.")
+
+            if choice.lower() in ("s", "skip"):
+                continue
 
             data[media_type][entity_title] = tmdb_results
             selection_cache[media_type][entity_title] = tmdb_results[0]["id"]
