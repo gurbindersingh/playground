@@ -32,6 +32,14 @@ def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
     return data
 
 
+def read_json(file_path: str) -> dict:
+    """Read a JSON file and return as a dictionary."""
+    with open(
+        path_from_project_root(file_path), mode="r", encoding="utf-8"
+    ) as json_file:
+        return json.load(json_file)
+
+
 def read_csv_data(file_path):
     """Read a CSV file and return its rows as dictionaries."""
     with open(
@@ -235,6 +243,97 @@ def fetch_tmdb_data(aggregated: dict):
 
     return data
 
+
+def filter_tmdb_data(data: dict):
+    # Cache selection so we don't have to redo them on every run of the program.
+    cache_file_path = "data/tvtime/tmdb_selection_cache.json"
+    if os.path.exists(path_from_project_root(cache_file_path)):
+        selection_cache = read_json(cache_file_path)
+    else:
+        selection_cache = {"shows": {}, "movies": {}}
+
+    media_types = (
+        ("shows", "name", "original_name", "first_air_date"),
+        ("movies", "title", "original_title", "release_date"),
+    )
+    no_match_count = 0
+    multiple_match_count = 0
+
+    # For the first pass we only filter the data
+    for media_type, title_field, _, _ in media_types:
+        for entity_title, tmdb_results in data[media_type].items():
+            # Most TMDB results only have a single entry
+            if len(tmdb_results) > 1:
+                # original_results = tmdb_results
+                exact_matches = [
+                    match
+                    for match in tmdb_results
+                    if match.get(title_field) == entity_title
+                ]
+
+                if exact_matches:
+                    tmdb_results = exact_matches
+
+                    # Some still have multiple results even after exact matching
+                    if len(tmdb_results) > 1:
+                        # If there is a cached result from the previous run, use that.
+                        cached_id = selection_cache[media_type].get(entity_title)
+                        cached_matches = [
+                            match
+                            for match in tmdb_results
+                            if match.get("id") == cached_id
+                        ]
+                        if cached_matches:
+                            tmdb_results = cached_matches
+                # else:
+                #     tmdb_results = original_results
+
+            data[media_type][entity_title] = tmdb_results
+
+            if not tmdb_results:
+                # Report if a show/movie does not have any matches. That will require manual intervention.
+                print(f"No exact {media_type[:-1]} match for {entity_title}.")
+                no_match_count += 1
+            elif len(tmdb_results) > 1:
+                multiple_match_count += 1
+
+    print(f"Entries with no matches: {no_match_count}")
+    print(f"Entries with multiple matches: {multiple_match_count}")
+
+    for (
+        media_type,
+        title_field,
+        original_title_field,
+        release_date_field,
+    ) in media_types:
+        for entity_title, tmdb_results in data[media_type].items():
+            if len(tmdb_results) <= 1:
+                continue
+
+            print(f"\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
+            for index, match in enumerate(tmdb_results, start=1):
+                release_date = match.get(release_date_field)
+                release_year = release_date[:4] if release_date else "<Unknown>"
+                print(f"{index}:")
+                print(f"Name: {match.get(title_field) or '<Unknown>'}")
+                print(
+                    f"Original name: {match.get(original_title_field) or '<Unknown>'}"
+                )
+                print(f"Release year: {release_year}")
+                print(f"Description: {match.get('overview') or '<Unknown>'}")
+
+            while True:
+                choice = input("Choose a match by number: ")
+                if choice.isdigit() and 1 <= int(choice) <= len(tmdb_results):
+                    tmdb_results = [tmdb_results[int(choice) - 1]]
+                    break
+                print(f"Enter a number from 1 to {len(tmdb_results)}.")
+
+            data[media_type][entity_title] = tmdb_results
+            selection_cache[media_type][entity_title] = tmdb_results[0]["id"]
+            write_json(selection_cache, cache_file_path)
+
+
 # TODO: Create smaller test files to check if the script does what it is
 # supposed to.
 def main():
@@ -277,6 +376,11 @@ def main():
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    # tmdb_data = fetch_tmdb_data(aggregated)
+    # write_json(tmdb_data, "data/tvtime/tmdb_data.json")
+    tmdb_data = read_json("data/tvtime/tmdb_data.json")
+    filter_tmdb_data(tmdb_data)
+    pass_counter += 1
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
 
