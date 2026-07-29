@@ -294,6 +294,66 @@ def refetch_empty_tmdb_data(aggregated: dict, tmdb_data: dict):
         tmdb_data[media_type].update(refetched_data[media_type])
 
 
+def filter_tmdb_candidates(
+    results: list[dict],
+    entity_title: str,
+    title_field: str,
+    release_date_field: str,
+    cached_id: int | None,
+) -> list[dict]:
+    if len(results) <= 1:
+        return results
+
+    cached_matches = [match for match in results if match.get("id") == cached_id]
+    if cached_matches:
+        return cached_matches
+
+    lookup_title, lookup_year = tmdb_lookup_title_and_year(entity_title)
+    title_matches = [
+        match for match in results if match.get(title_field) == lookup_title
+    ]
+    year_matches = [
+        match
+        for match in title_matches
+        if lookup_year and (match.get(release_date_field) or "").startswith(lookup_year)
+    ]
+    return year_matches or title_matches or results
+
+
+def choose_tmdb_match(
+    entity_title: str,
+    media_type: str,
+    results: list[dict],
+    title_field: str,
+    original_title_field: str,
+    release_date_field: str,
+) -> dict | None:
+    print(f"\n\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
+    for index, match in enumerate(results, start=1):
+        release_date = match.get(release_date_field)
+        tmdb_id = match.get("id")
+        print(f"{index}.")
+        print("-----")
+        print(
+            f"{match.get(title_field) or '<Unknown>'} | "
+            f"{match.get(original_title_field) or '<Unknown>'} | "
+            f"{release_date or '<Unknown>'} | "
+            f"{tmdb_id if tmdb_id is not None else '<Unknown>'}"
+        )
+        print(f"Description: {match.get('overview') or '<Unknown>'}")
+        print("-----")
+
+    while True:
+        choice = input(
+            "Choose a match by number, or type s/skip to leave unresolved: "
+        ).strip()
+        if choice.lower() in ("s", "skip"):
+            return None
+        if choice.isdigit() and 1 <= int(choice) <= len(results):
+            return results[int(choice) - 1]
+        print(f"Enter a number from 1 to {len(results)}.")
+
+
 def filter_tmdb_data(data: dict):
     # Cache selection so we don't have to redo them on every run of the program.
     cache_file_path = "data/tvtime/tmdb_selection_cache.json"
@@ -309,95 +369,44 @@ def filter_tmdb_data(data: dict):
     no_match_count = 0
     multiple_match_count = 0
 
-    # For the first pass we only filter the data
     for media_type, title_field, _, release_date_field in media_types:
-        for entity_title, tmdb_results in data[media_type].items():
-            # Most TMDB results only have a single entry
-            if len(tmdb_results) > 1:
-                lookup_title, lookup_year = tmdb_lookup_title_and_year(entity_title)
-                title_matches = [
-                    match
-                    for match in tmdb_results
-                    if match.get(title_field) == lookup_title
-                ]
-                year_matches = [
-                    match
-                    for match in title_matches
-                    if lookup_year
-                    and (match.get(release_date_field) or "").startswith(lookup_year)
-                ]
-                exact_matches = year_matches or title_matches
+        for entity_title, results in data[media_type].items():
+            data[media_type][entity_title] = filter_tmdb_candidates(
+                results,
+                entity_title,
+                title_field,
+                release_date_field,
+                selection_cache[media_type].get(entity_title),
+            )
+            filtered_results = data[media_type][entity_title]
 
-                if exact_matches:
-                    tmdb_results = exact_matches
-
-                    # Some still have multiple results even after exact matching
-                    if len(tmdb_results) > 1:
-                        # If there is a cached result from the previous run, use that.
-                        cached_id = selection_cache[media_type].get(entity_title)
-                        cached_matches = [
-                            match
-                            for match in tmdb_results
-                            if match.get("id") == cached_id
-                        ]
-                        if cached_matches:
-                            tmdb_results = cached_matches
-                # else:
-                #     tmdb_results = original_results
-
-            data[media_type][entity_title] = tmdb_results
-
-            if not tmdb_results:
-                # Report if a show/movie does not have any matches. That will require manual intervention.
+            if not filtered_results:
                 print(f"No exact {media_type[:-1]} match for {entity_title}.")
                 no_match_count += 1
-            elif len(tmdb_results) > 1:
+            elif len(filtered_results) > 1:
                 multiple_match_count += 1
 
     print(f"Entries with no matches: {no_match_count}")
     print(f"Entries with multiple matches: {multiple_match_count}")
 
-    for (
-        media_type,
-        title_field,
-        original_title_field,
-        release_date_field,
-    ) in media_types:
-        for entity_title, tmdb_results in data[media_type].items():
-            if len(tmdb_results) <= 1:
+    for media_type, title_field, original_title_field, release_date_field in media_types:
+        for entity_title, results in data[media_type].items():
+            if len(results) <= 1:
                 continue
 
-            print(f"\n\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
-            for index, match in enumerate(tmdb_results, start=1):
-                release_date = match.get(release_date_field)
-                tmdb_id = match.get("id")
-                print(f"{index}.")
-                print("-----")
-                print(
-                    f"{match.get(title_field) or '<Unknown>'} | "
-                    f"{match.get(original_title_field) or '<Unknown>'} | "
-                    f"{release_date or '<Unknown>'} | "
-                    f"{tmdb_id if tmdb_id is not None else '<Unknown>'}"
-                )
-                print(f"Description: {match.get('overview') or '<Unknown>'}")
-                print("-----")
-
-            while True:
-                choice = input(
-                    "Choose a match by number, or type s/skip to leave unresolved: "
-                ).strip()
-                if choice.lower() in ("s", "skip"):
-                    break
-                if choice.isdigit() and 1 <= int(choice) <= len(tmdb_results):
-                    tmdb_results = [tmdb_results[int(choice) - 1]]
-                    break
-                print(f"Enter a number from 1 to {len(tmdb_results)}.")
-
-            if choice.lower() in ("s", "skip"):
+            selected_match = choose_tmdb_match(
+                entity_title,
+                media_type,
+                results,
+                title_field,
+                original_title_field,
+                release_date_field,
+            )
+            if selected_match is None:
                 continue
 
-            data[media_type][entity_title] = tmdb_results
-            selection_cache[media_type][entity_title] = tmdb_results[0]["id"]
+            data[media_type][entity_title] = [selected_match]
+            selection_cache[media_type][entity_title] = selected_match["id"]
             write_json(selection_cache, cache_file_path)
 
 
