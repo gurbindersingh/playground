@@ -308,6 +308,7 @@ dependencies = [
     { name = "imagehash" },
     { name = "pillow" },
     { name = "pytest-playwright" },
+    { name = "requests" },
 ]
 
 [package.metadata]
@@ -315,6 +316,7 @@ requires-dist = [
     { name = "imagehash", specifier = ">=4.3.2" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pytest-playwright", specifier = ">=0.7.0" },
+    { name = "requests", specifier = ">=2.32.3" },
 ]
 
 [[package]]
