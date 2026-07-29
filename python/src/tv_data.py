@@ -34,7 +34,9 @@ def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
 
 def read_csv_data(file_path):
     """Read a CSV file and return its rows as dictionaries."""
-    with open(file_path, newline="", encoding="utf-8") as csv_file:
+    with open(
+        path_from_project_root(file_path), newline="", encoding="utf-8"
+    ) as csv_file:
         return list(csv.DictReader(csv_file))
 
 
@@ -49,7 +51,7 @@ def write_json(data, file_path: str):
 
 def aggregate_show_data(aggregated: dict, file_path: str):
     print(f"Running aggregation on file {file_path}")
-    raw_watch_data = read_csv_data(path_from_project_root(file_path))
+    raw_watch_data = read_csv_data(file_path)
 
     for entry in raw_watch_data:
         if not entry.get("series_name"):
@@ -124,7 +126,7 @@ def aggregate_show_data(aggregated: dict, file_path: str):
 
 def aggregate_movie_data(aggregated: dict, file_path: str):
     print(f"Running aggregation on file {file_path}")
-    raw_watch_data = read_csv_data(path_from_project_root(file_path))
+    raw_watch_data = read_csv_data(file_path)
 
     for entry in raw_watch_data:
         if not entry.get("movie_name"):
