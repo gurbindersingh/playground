@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import re
 import time
 from typing import Literal
 
@@ -222,6 +223,7 @@ def fetch_tmdb_data(aggregated: dict):
             results = []
             page = 1
             total_pages = 1
+            query_name = re.sub(r" \(\d{4}\)$", "", entry["name"])
 
             print(f"Fetching data for {entry['name']}")
             while page <= total_pages:
@@ -229,7 +231,7 @@ def fetch_tmdb_data(aggregated: dict):
                 response = requests.get(
                     endpoint,
                     headers=headers,
-                    params={"query": entry["name"], "page": page},
+                    params={"query": query_name, "page": page},
                 )
                 time.sleep(1 / 3)
                 response.raise_for_status()
@@ -242,6 +244,47 @@ def fetch_tmdb_data(aggregated: dict):
             data[media_type][entry["name"]] = results
 
     return data
+
+
+def refetch_empty_tmdb_data(aggregated: dict, tmdb_data: dict):
+    retry_data = {"shows": [], "movies": []}
+
+    for media_type in ("shows", "movies"):
+        for entity_name, tmdb_results in list(tmdb_data[media_type].items()):
+            if tmdb_results:
+                continue
+
+            # Check if the name also appears in the aggregated data to catch
+            # any deviations, e.g. due to manual editing.
+            matches_in_aggregated = [
+                entry
+                for entry in aggregated[media_type]
+                if entry["name"] == entity_name
+            ]
+            if not matches_in_aggregated:
+                # Aggregated data does not contain the entity_name name. This
+                # should never actually be case but if does we don't overwrite
+                # the TMDB entry.
+                print(
+                    f"No aggregated {media_type[:-1]} entry for empty TMDB result "
+                    f"{entity_name}."
+                )
+                continue
+            if len(matches_in_aggregated) > 1:
+                # There really shouldn't be multiple entries. But just in case.
+                print(f"{entity_name} has multiple entries in aggregated data.")
+                continue
+
+            retry_data[media_type].append(matches_in_aggregated[0])
+
+    if not retry_data["shows"] and not retry_data["movies"]:
+        return
+
+    # Fetch only the entries that were empty in the saved TMDB data.
+    refetched_data = fetch_tmdb_data(retry_data)
+    for media_type in ("shows", "movies"):
+        # Replace the original empty lists without changing their dictionary keys.
+        tmdb_data[media_type].update(refetched_data[media_type])
 
 
 def filter_tmdb_data(data: dict):
@@ -376,11 +419,12 @@ def main():
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    tmdb_data = read_json("data/tvtime/tmdb_data.json")
+    refetch_empty_tmdb_data(aggregated, tmdb_data)
+    filter_tmdb_data(tmdb_data)
     # tmdb_data = fetch_tmdb_data(aggregated)
     # write_json(tmdb_data, "data/tvtime/tmdb_data.json")
-    tmdb_data = read_json("data/tvtime/tmdb_data.json")
-    filter_tmdb_data(tmdb_data)
-    pass_counter += 1
+
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
 
