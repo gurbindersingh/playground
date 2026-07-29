@@ -421,9 +421,9 @@ def main():
 
     tmdb_data = read_json("data/tvtime/tmdb_data.json")
     refetch_empty_tmdb_data(aggregated, tmdb_data)
+    write_json(tmdb_data, "data/tvtime/tmdb_data.json")
     filter_tmdb_data(tmdb_data)
     # tmdb_data = fetch_tmdb_data(aggregated)
-    # write_json(tmdb_data, "data/tvtime/tmdb_data.json")
 
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
