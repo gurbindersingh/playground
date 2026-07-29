@@ -11,6 +11,7 @@ def run_with_retries(callback, exception_message: str, max_tries=10, **kwargs):
     Runs a function a number of times equal to `max_tries`.
 
     ### Parameters
+
     1. `callback`: The function to run.
     3. `exception_message`: The exception message to return if non of the executions
         return successfully
@@ -24,7 +25,7 @@ def run_with_retries(callback, exception_message: str, max_tries=10, **kwargs):
         sleep(timeout)
         # print(timeout)
         try:
-            LOGGER.debug(f"Retry ({i+1}/{max_tries})")
+            LOGGER.debug(f"Retry ({i + 1}/{max_tries})")
             computed_value = callback(**kwargs)
             return computed_value
 
