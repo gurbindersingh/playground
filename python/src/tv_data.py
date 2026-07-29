@@ -167,7 +167,7 @@ def sort_episodes_asc(aggregated: dict):
             episodes.sort(key=lambda ep: (ep["season"], ep["episode"]))
 
 
-def fix_episode_list(shows: list[dict]):
+def dedupe_episode_list(shows: list[dict]):
     print("Fixing episode lists")
 
     for show in shows:
@@ -350,18 +350,18 @@ def main():
     ]
     pass_counter = 1
     for file in show_files:
-        print(f"=== {pass_counter} ===")
+        print(f"=== Pass {pass_counter}: Aggregating all show data ===")
         aggregate_show_data(shows, f"data/tvtime/{file}")
         write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
         pass_counter += 1
 
-    print(f"=== Pass {pass_counter} ===")
+    print(f"=== Pass {pass_counter}: Aggregating all movie data ===")
     sort_episodes_asc(shows)
     aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
-    print(f"=== Pass {pass_counter} ===")
+    print(f"=== Pass {pass_counter}: Flatten dictionary into list ===")
     print("Flatten dictionary")
     aggregated = {
         # NOTE: The return type of values() is not a normal list and so not
@@ -371,8 +371,8 @@ def main():
     }
     pass_counter += 1
 
-    print(f"=== Pass {pass_counter} ===")
-    fix_episode_list(aggregated["shows"])
+    print(f"=== Pass {pass_counter}: Deduplicate episode list ===")
+    dedupe_episode_list(aggregated["shows"])
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
