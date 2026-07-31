@@ -9,6 +9,58 @@ import requests
 
 from utils.path_utils import path_from_project_root
 
+TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
+TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
+TMDB_REQUEST_TIMEOUT = 30
+TMDB_REQUEST_INTERVAL = 1 / 3
+
+SHOW_SCALAR_FIELDS = (
+    "first_air_date",
+    "last_air_date",
+    "homepage",
+    "id",
+    "in_production",
+    "next_episode_to_air",
+    "original_name",
+    "backdrop_path",
+    "poster_path",
+    "number_of_episodes",
+    "number_of_seasons",
+    "overview",
+    "popularity",
+    "status",
+    "type",
+    "vote_average",
+    "vote_count",
+)
+SHOW_LIST_FIELDS = ("genres", "languages", "seasons")
+MOVIE_SCALAR_FIELDS = (
+    "release_date",
+    "homepage",
+    "id",
+    "original_language",
+    "original_title",
+    "title",
+    "backdrop_path",
+    "poster_path",
+    "overview",
+    "popularity",
+    "runtime",
+    "status",
+    "vote_average",
+    "vote_count",
+)
+MOVIE_LIST_FIELDS = ("genres", "spoken_languages")
+EPISODE_METADATA_FIELDS = (
+    "name",
+    "overview",
+    "air_date",
+    "runtime",
+    "still_path",
+    "vote_average",
+    "vote_count",
+)
+
 
 def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
     data: dict[str, str | bool | list | int] = {
@@ -216,13 +268,14 @@ def tmdb_lookup_title_and_year(name: str) -> tuple[str, str | None]:
 def fetch_tmdb_data(aggregated: dict):
     print("Fetching data")
     api_key = os.getenv("TMDB_TOKEN")
-    print(api_key)
+    if not api_key:
+        raise RuntimeError("TMDB_TOKEN is required to fetch TMDB data.")
     headers = {"Authorization": f"Bearer {api_key}"}
     data = {"shows": {}, "movies": {}}
 
     endpoints = {
-        "shows": "https://api.themoviedb.org/3/search/tv",
-        "movies": "https://api.themoviedb.org/3/search/movie",
+        "shows": f"{TMDB_API_BASE_URL}/search/tv",
+        "movies": f"{TMDB_API_BASE_URL}/search/movie",
     }
 
     for media_type, endpoint in endpoints.items():
@@ -239,8 +292,9 @@ def fetch_tmdb_data(aggregated: dict):
                     endpoint,
                     headers=headers,
                     params={"query": query_name, "page": page},
+                    timeout=TMDB_REQUEST_TIMEOUT,
                 )
-                time.sleep(1 / 3)
+                time.sleep(TMDB_REQUEST_INTERVAL)
                 response.raise_for_status()
 
                 result = response.json()
@@ -251,6 +305,165 @@ def fetch_tmdb_data(aggregated: dict):
             data[media_type][entry["name"]] = results
 
     return data
+
+
+def selected_tmdb_id(results: object) -> int | None:
+    if not isinstance(results, list) or len(results) != 1:
+        return None
+
+    candidate = results[0]
+    if not isinstance(candidate, dict):
+        return None
+
+    tmdb_id = candidate.get("id")
+    return tmdb_id if type(tmdb_id) is int else None
+
+
+def is_valid_tmdb_detail(detail: object, tmdb_id: int) -> bool:
+    return isinstance(detail, dict) and detail.get("id") == tmdb_id
+
+
+def fetch_details(tmdb_data: dict, cached_details: dict) -> tuple[dict, list[str]]:
+    details = dict(cached_details) if isinstance(cached_details, dict) else {}
+    for media_type in ("shows", "movies"):
+        if not isinstance(details.get(media_type), dict):
+            details[media_type] = {}
+
+    endpoints = {
+        "shows": f"{TMDB_API_BASE_URL}/tv",
+        "movies": f"{TMDB_API_BASE_URL}/movie",
+    }
+    api_key = os.getenv("TMDB_TOKEN")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
+    failures = []
+    attempted_ids: set[tuple[str, int]] = set()
+    total_entries = sum(len(tmdb_data.get(media_type, {})) for media_type in endpoints)
+    cached_count = 0
+    fetched_count = 0
+    unresolved_count = 0
+    progress = 0
+    request_count = 0
+
+    for media_type in ("shows", "movies"):
+        for migration_name, results in tmdb_data.get(media_type, {}).items():
+            progress += 1
+            progress_prefix = (
+                f"[{progress}/{total_entries}] {media_type[:-1].title()}: "
+            )
+            tmdb_id = selected_tmdb_id(results)
+            if tmdb_id is None:
+                print(f"{progress_prefix}{migration_name} (no selected ID)")
+                unresolved_count += 1
+                continue
+
+            detail_cache = details[media_type]
+            cache_key = str(tmdb_id)
+            if is_valid_tmdb_detail(detail_cache.get(cache_key), tmdb_id):
+                print(f"{progress_prefix}{migration_name} (cached)")
+                cached_count += 1
+                continue
+
+            request_key = (media_type, tmdb_id)
+            if request_key in attempted_ids:
+                print(f"{progress_prefix}{migration_name} (previous request failed)")
+                continue
+            attempted_ids.add(request_key)
+
+            if headers is None:
+                print(f"{progress_prefix}{migration_name} (failed)")
+                failures.append(
+                    f"Cannot fetch {media_type[:-1]} {migration_name} ({tmdb_id}): "
+                    "TMDB_TOKEN is not set."
+                )
+                continue
+
+            print(f"{progress_prefix}{migration_name} (fetching)")
+            try:
+                response = requests.get(
+                    f"{endpoints[media_type]}/{tmdb_id}",
+                    headers=headers,
+                    timeout=TMDB_REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                detail = response.json()
+                if not is_valid_tmdb_detail(detail, tmdb_id):
+                    raise ValueError(
+                        "TMDB detail response has an invalid or mismatched ID."
+                    )
+            except (requests.RequestException, ValueError) as error:
+                failures.append(
+                    f"Could not fetch {media_type[:-1]} {migration_name} ({tmdb_id}): "
+                    f"{error}"
+                )
+            else:
+                detail_cache[cache_key] = detail
+                fetched_count += 1
+            finally:
+                time.sleep(TMDB_REQUEST_INTERVAL)
+                request_count += 1
+                if request_count % 5 == 0:
+                    write_json(details, TMDB_DETAILS_CACHE_PATH)
+                    print(f"Saved TMDB detail cache after {request_count} requests.")
+
+    print(
+        "TMDB details: "
+        f"{cached_count} cached, {fetched_count} fetched, "
+        f"{unresolved_count} unresolved, {len(failures)} failed"
+    )
+    return details, failures
+
+
+def add_metadata_defaults(
+    entry: dict, scalar_fields: tuple[str, ...], list_fields: tuple[str, ...]
+):
+    for field in scalar_fields:
+        entry.setdefault(field, None)
+    for field in list_fields:
+        entry.setdefault(field, [])
+
+
+def enrich_data(aggregated: dict, tmdb_data: dict, tmdb_details: dict):
+    media_types = (
+        ("shows", SHOW_SCALAR_FIELDS, SHOW_LIST_FIELDS),
+        ("movies", MOVIE_SCALAR_FIELDS, MOVIE_LIST_FIELDS),
+    )
+
+    for media_type, scalar_fields, list_fields in media_types:
+        for entry in aggregated[media_type]:
+            migration_name = entry["name"]
+            add_metadata_defaults(entry, scalar_fields, list_fields)
+
+            if media_type == "shows":
+                for episode in entry.get("episodes_watched", []):
+                    for field in EPISODE_METADATA_FIELDS:
+                        episode.setdefault(field, None)
+
+            tmdb_id = selected_tmdb_id(
+                tmdb_data.get(media_type, {}).get(migration_name)
+            )
+            if tmdb_id is None:
+                continue
+
+            detail = tmdb_details.get(media_type, {}).get(str(tmdb_id))
+            if not is_valid_tmdb_detail(detail, tmdb_id):
+                raise RuntimeError(
+                    f"Missing cached TMDB detail for {media_type[:-1]} "
+                    f"{migration_name} ({tmdb_id})."
+                )
+
+            for field in (*scalar_fields, *list_fields):
+                if field in detail:
+                    entry[field] = detail[field]
+
+            if media_type == "shows":
+                canonical_name = detail.get("name")
+                if isinstance(canonical_name, str) and canonical_name.strip():
+                    entry["name"] = canonical_name
+            else:
+                canonical_title = detail.get("title")
+                if isinstance(canonical_title, str) and canonical_title.strip():
+                    entry["name"] = canonical_title
+                    entry["title"] = canonical_title
 
 
 def refetch_empty_tmdb_data(aggregated: dict, tmdb_data: dict):
@@ -389,7 +602,12 @@ def filter_tmdb_data(data: dict):
     print(f"Entries with no matches: {no_match_count}")
     print(f"Entries with multiple matches: {multiple_match_count}")
 
-    for media_type, title_field, original_title_field, release_date_field in media_types:
+    for (
+        media_type,
+        title_field,
+        original_title_field,
+        release_date_field,
+    ) in media_types:
         for entity_title, results in data[media_type].items():
             if len(results) <= 1:
                 continue
@@ -410,8 +628,6 @@ def filter_tmdb_data(data: dict):
             write_json(selection_cache, cache_file_path)
 
 
-# TODO: Create smaller test files to check if the script does what it is
-# supposed to.
 def main():
     shows = {}
     movies = {}
@@ -445,6 +661,7 @@ def main():
         "shows": list(aggregated["shows"].values()),
         "movies": list(aggregated["movies"].values()),
     }
+    write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
     print(f"=== Pass {pass_counter}: Deduplicate episode list ===")
@@ -452,11 +669,32 @@ def main():
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    # tmdb_data = fetch_tmdb_data(aggregated)
     tmdb_data = read_json("data/tvtime/tmdb_data.json")
     refetch_empty_tmdb_data(aggregated, tmdb_data)
     write_json(tmdb_data, "data/tvtime/tmdb_data.json")
     filter_tmdb_data(tmdb_data)
-    # tmdb_data = fetch_tmdb_data(aggregated)
+
+    if os.path.exists(path_from_project_root(TMDB_DETAILS_CACHE_PATH)):
+        tmdb_details = read_json(TMDB_DETAILS_CACHE_PATH)
+    else:
+        tmdb_details = {"shows": {}, "movies": {}}
+
+    print(f"=== Pass {pass_counter}: Fetch detail data")
+    tmdb_details, fetch_failures = fetch_details(tmdb_data, tmdb_details)
+    write_json(tmdb_details, TMDB_DETAILS_CACHE_PATH)
+
+    if fetch_failures:
+        for failure in fetch_failures:
+            print(failure)
+        raise RuntimeError(
+            f"Failed to fetch {len(fetch_failures)} TMDB detail entries."
+        )
+
+    print(f"=== Pass {pass_counter}: Enrich data")
+    enrich_data(aggregated, tmdb_data, tmdb_details)
+    write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
+    pass_counter += 1
 
     write_json(aggregated, "data/tvtime/watch_data_final.json")
 
