@@ -530,42 +530,21 @@ def enrich_data(aggregated: dict, tmdb_data: dict, tmdb_details: dict):
 
 
 def search_tmdb_for_missing(aggregated: dict, tmdb_search_data: dict):
-    """Makes a search request for each media in `aggregated` that does not have
-    a corresponding search result in `tmdb_search_data`.
+    """Search for aggregated media with absent or empty cached results.
 
-    Mutates `tmdb_search_data`. Results without exactly one aggregate-name
-    match are reported and left unchanged.
+    Mutates ``tmdb_search_data`` by adding results for media that are missing
+    from the cache or whose cached result list is empty. Existing non-empty
+    result lists are preserved.
     """
     missing_media = {"shows": [], "movies": []}
 
     for media_type in ("shows", "movies"):
-        for media_name, search_results in tmdb_search_data[media_type].items():
-            # If search results are not empty, skip.
-            if search_results:
-                continue
+        cached_results = tmdb_search_data.setdefault(media_type, {})
 
-            # Check if the name also appears in the aggregated data to catch
-            # any deviations, e.g. due to manual editing.
-            matches_in_aggregated = [
-                media for media in aggregated[media_type] if media["name"] == media_name
-            ]
-            if not matches_in_aggregated:
-                # Media was not found in the aggregated data but has an empty
-                # entry in the search results, meaning we searched for it at
-                # some point but TMDB returned nothing. This should never
-                # actually be case but if it is we don't overwrite the TMDB
-                # entry.
-                print(
-                    f"No aggregated {media_type[:-1]} entry for empty TMDB result "
-                    f"{media_name}."
-                )
+        for media in aggregated[media_type]:
+            if cached_results.get(media["name"]):
                 continue
-            if len(matches_in_aggregated) > 1:
-                # There really shouldn't be multiple entries. But just in case.
-                print(f"{media_name} has multiple entries in aggregated data.")
-                continue
-
-            missing_media[media_type].append(matches_in_aggregated[0])
+            missing_media[media_type].append(media)
 
     if not missing_media["shows"] and not missing_media["movies"]:
         return
