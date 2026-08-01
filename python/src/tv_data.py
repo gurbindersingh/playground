@@ -10,6 +10,7 @@ import requests
 from utils.path_utils import path_from_project_root
 
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
+TMDB_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data.json"
 TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
 TMDB_REQUEST_TIMEOUT = 30
 TMDB_REQUEST_INTERVAL = 1 / 3
@@ -63,6 +64,7 @@ EPISODE_METADATA_FIELDS = (
 
 
 def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
+    """Return an initialized watch record for a show or movie."""
     data: dict[str, str | bool | list | int] = {
         "name": name,
         # Using these default values (even when they are not valid date-times)
@@ -86,7 +88,7 @@ def new_watch_data(name: str, type: Literal["show", "movie"] = "show") -> dict:
 
 
 def read_json(file_path: str) -> dict:
-    """Read a JSON file and return as a dictionary."""
+    """Return data read from a project-relative JSON file."""
     with open(
         path_from_project_root(file_path), mode="r", encoding="utf-8"
     ) as json_file:
@@ -94,7 +96,7 @@ def read_json(file_path: str) -> dict:
 
 
 def read_csv_data(file_path):
-    """Read a CSV file and return its rows as dictionaries."""
+    """Return rows from a project-relative CSV file as dictionaries."""
     with open(
         path_from_project_root(file_path), newline="", encoding="utf-8"
     ) as csv_file:
@@ -102,6 +104,7 @@ def read_csv_data(file_path):
 
 
 def write_json(data, file_path: str):
+    """Write data as indented JSON to a project-relative file."""
     with open(
         path_from_project_root(file_path),
         mode="w",
@@ -111,6 +114,16 @@ def write_json(data, file_path: str):
 
 
 def aggregate_show_data(aggregated: dict, file_path: str):
+    """Add show records from a CSV file to ``aggregated``.
+
+    Records are keyed by stripped series name. The function keeps the earliest
+    creation time, status from the latest update, highest episode count, and
+    unique season/episode/timestamp combinations. It mutates and returns
+    ``aggregated``.
+
+    Returns:
+        The input dictionary after aggregation.
+    """
     print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(file_path)
 
@@ -186,6 +199,15 @@ def aggregate_show_data(aggregated: dict, file_path: str):
 
 
 def aggregate_movie_data(aggregated: dict, file_path: str):
+    """Add movie records from a CSV file to ``aggregated``.
+
+    Records are keyed by stripped movie name. The function keeps the earliest
+    creation time and latest update time for each movie. It mutates and returns
+    ``aggregated``.
+
+    Returns:
+        The input dictionary after aggregation.
+    """
     print(f"Running aggregation on file {file_path}")
     raw_watch_data = read_csv_data(file_path)
 
@@ -213,6 +235,7 @@ def aggregate_movie_data(aggregated: dict, file_path: str):
 
 
 def sort_episodes_asc(aggregated: dict):
+    """Sort each episode list in place by season and episode number."""
     print("Sorting episode lists")
     for entry in aggregated.values():
         if entry.get("episodes_watched"):
@@ -221,7 +244,12 @@ def sort_episodes_asc(aggregated: dict):
 
 
 def dedupe_episode_list(shows: list[dict]):
-    print("Fixing episode lists")
+    """Remove duplicate episodes when a list exceeds its recorded total.
+
+    Mutates the show dictionaries and prints any remaining difference between
+    the recorded total and episode-list length.
+    """
+    print("Depuplicating episode lists")
 
     for show in shows:
         total_watched: int = show["total_episodes_watched"]
@@ -245,6 +273,11 @@ def dedupe_episode_list(shows: list[dict]):
 
 
 def remove_duplicate_episode(episodes_watched: list[dict]):
+    """Return the first entry for each season and episode number.
+
+    Entries for season zero, episode zero are excluded. Timestamps are not part
+    of the duplicate key.
+    """
     seen = set()
     episodes = []
     for ep in episodes_watched:
@@ -259,14 +292,24 @@ def remove_duplicate_episode(episodes_watched: list[dict]):
 
 
 def tmdb_lookup_title_and_year(name: str) -> tuple[str, str | None]:
+    """Return a title and its trailing ``(YYYY)`` year, if present."""
     match = re.fullmatch(r"(.+) \((\d{4})\)", name)
     if match:
         return match.group(1), match.group(2)
     return name, None
 
 
-def fetch_tmdb_data(aggregated: dict):
-    print("Fetching data")
+def search_tmdb(aggregated: dict):
+    """Return all TMDB search results for each show and movie.
+
+    A trailing ``(YYYY)`` is omitted from each query. The original entry name
+    remains the result key. Requests use ``TMDB_REQUEST_INTERVAL`` for pacing.
+
+    Raises:
+        RuntimeError: If ``TMDB_TOKEN`` is not set.
+        requests.RequestException: If an HTTP request fails.
+    """
+    print("Fetching search results")
     api_key = os.getenv("TMDB_TOKEN")
     if not api_key:
         raise RuntimeError("TMDB_TOKEN is required to fetch TMDB data.")
@@ -279,15 +322,15 @@ def fetch_tmdb_data(aggregated: dict):
     }
 
     for media_type, endpoint in endpoints.items():
-        for entry in aggregated[media_type]:
+        for media in aggregated[media_type]:
             results = []
             page = 1
             total_pages = 1
-            query_name, _ = tmdb_lookup_title_and_year(entry["name"])
+            query_name, _ = tmdb_lookup_title_and_year(media["name"])
 
-            print(f"Fetching data for {entry['name']}")
+            print(f"Fetching search results for {media['name']}")
             while page <= total_pages:
-                print(f"Fetching page {page}")
+                print(f"Fetching page {page} of paginaged search results.")
                 response = requests.get(
                     endpoint,
                     headers=headers,
@@ -302,12 +345,13 @@ def fetch_tmdb_data(aggregated: dict):
                 total_pages = result["total_pages"]
                 page += 1
 
-            data[media_type][entry["name"]] = results
+            data[media_type][media["name"]] = results
 
     return data
 
 
 def selected_tmdb_id(results: object) -> int | None:
+    """Return the ID from a single-result list if its type is exactly ``int``."""
     if not isinstance(results, list) or len(results) != 1:
         return None
 
@@ -320,10 +364,20 @@ def selected_tmdb_id(results: object) -> int | None:
 
 
 def is_valid_tmdb_detail(detail: object, tmdb_id: int) -> bool:
+    """Return whether ``detail`` is a dictionary with the expected TMDB ID."""
     return isinstance(detail, dict) and detail.get("id") == tmdb_id
 
 
 def fetch_details(tmdb_data: dict, cached_details: dict) -> tuple[dict, list[str]]:
+    """Return TMDB details and errors for entries with one selected result.
+
+    Valid cached details are reused. Each missing media-type/ID pair is
+    requested at most once. The cache is written after every five requests.
+    Request and response-validation errors are returned instead of raised.
+
+    ``cached_details`` is shallow-copied, so existing nested dictionaries may
+    be mutated.
+    """
     details = dict(cached_details) if isinstance(cached_details, dict) else {}
     for media_type in ("shows", "movies"):
         if not isinstance(details.get(media_type), dict):
@@ -416,6 +470,7 @@ def fetch_details(tmdb_data: dict, cached_details: dict) -> tuple[dict, list[str
 def add_metadata_defaults(
     entry: dict, scalar_fields: tuple[str, ...], list_fields: tuple[str, ...]
 ):
+    """Set missing scalar fields to ``None`` and list fields to empty lists."""
     for field in scalar_fields:
         entry.setdefault(field, None)
     for field in list_fields:
@@ -423,6 +478,14 @@ def add_metadata_defaults(
 
 
 def enrich_data(aggregated: dict, tmdb_data: dict, tmdb_details: dict):
+    """Copy allowed TMDB detail fields into ``aggregated`` in place.
+
+    Missing metadata fields receive defaults. Selected shows and movies use the
+    name or title from their TMDB detail record.
+
+    Raises:
+        RuntimeError: If a selected TMDB ID has no matching cached detail.
+    """
     media_types = (
         ("shows", SHOW_SCALAR_FIELDS, SHOW_LIST_FIELDS),
         ("movies", MOVIE_SCALAR_FIELDS, MOVIE_LIST_FIELDS),
@@ -466,45 +529,52 @@ def enrich_data(aggregated: dict, tmdb_data: dict, tmdb_details: dict):
                     entry["title"] = canonical_title
 
 
-def refetch_empty_tmdb_data(aggregated: dict, tmdb_data: dict):
-    retry_data = {"shows": [], "movies": []}
+def search_tmdb_for_missing(aggregated: dict, tmdb_search_data: dict):
+    """Makes a search request for each media in `aggregated` that does not have
+    a corresponding search result in `tmdb_search_data`.
+
+    Mutates `tmdb_search_data`. Results without exactly one aggregate-name
+    match are reported and left unchanged.
+    """
+    missing_media = {"shows": [], "movies": []}
 
     for media_type in ("shows", "movies"):
-        for entity_name, tmdb_results in list(tmdb_data[media_type].items()):
-            if tmdb_results:
+        for media_name, search_results in tmdb_search_data[media_type].items():
+            # If search results are not empty, skip.
+            if search_results:
                 continue
 
             # Check if the name also appears in the aggregated data to catch
             # any deviations, e.g. due to manual editing.
             matches_in_aggregated = [
-                entry
-                for entry in aggregated[media_type]
-                if entry["name"] == entity_name
+                media for media in aggregated[media_type] if media["name"] == media_name
             ]
             if not matches_in_aggregated:
-                # Aggregated data does not contain the entity_name name. This
-                # should never actually be case but if does we don't overwrite
-                # the TMDB entry.
+                # Media was not found in the aggregated data but has an empty
+                # entry in the search results, meaning we searched for it at
+                # some point but TMDB returned nothing. This should never
+                # actually be case but if it is we don't overwrite the TMDB
+                # entry.
                 print(
                     f"No aggregated {media_type[:-1]} entry for empty TMDB result "
-                    f"{entity_name}."
+                    f"{media_name}."
                 )
                 continue
             if len(matches_in_aggregated) > 1:
                 # There really shouldn't be multiple entries. But just in case.
-                print(f"{entity_name} has multiple entries in aggregated data.")
+                print(f"{media_name} has multiple entries in aggregated data.")
                 continue
 
-            retry_data[media_type].append(matches_in_aggregated[0])
+            missing_media[media_type].append(matches_in_aggregated[0])
 
-    if not retry_data["shows"] and not retry_data["movies"]:
+    if not missing_media["shows"] and not missing_media["movies"]:
         return
 
     # Fetch only the entries that were empty in the saved TMDB data.
-    refetched_data = fetch_tmdb_data(retry_data)
+    search_results = search_tmdb(missing_media)
     for media_type in ("shows", "movies"):
         # Replace the original empty lists without changing their dictionary keys.
-        tmdb_data[media_type].update(refetched_data[media_type])
+        tmdb_search_data[media_type].update(search_results[media_type])
 
 
 def filter_tmdb_candidates(
@@ -514,6 +584,11 @@ def filter_tmdb_candidates(
     release_date_field: str,
     cached_id: int | None,
 ) -> list[dict]:
+    """Filter TMDB candidates by cached ID, title, and release year.
+
+    The priority is cached ID, exact title plus year, then exact title. Returns
+    the original list if none of those filters match.
+    """
     if len(results) <= 1:
         return results
 
@@ -541,6 +616,7 @@ def choose_tmdb_match(
     original_title_field: str,
     release_date_field: str,
 ) -> dict | None:
+    """Return the TMDB candidate selected through standard input, or ``None``."""
     print(f"\n\n\nMultiple {media_type[:-1]} matches for {entity_title}:")
     for index, match in enumerate(results, start=1):
         release_date = match.get(release_date_field)
@@ -567,7 +643,12 @@ def choose_tmdb_match(
         print(f"Enter a number from 1 to {len(results)}.")
 
 
-def filter_tmdb_data(data: dict):
+def filter_tmdb_data(tmdb_search_data: dict):
+    """Reduce TMDB candidate lists in ``data`` in place.
+
+    Uses cached IDs, exact titles, and release years before prompting for
+    ambiguous matches. Prompt selections are written to the selection cache.
+    """
     # Cache selection so we don't have to redo them on every run of the program.
     cache_file_path = "data/tvtime/tmdb_selection_cache.json"
     if os.path.exists(path_from_project_root(cache_file_path)):
@@ -583,15 +664,15 @@ def filter_tmdb_data(data: dict):
     multiple_match_count = 0
 
     for media_type, title_field, _, release_date_field in media_types:
-        for entity_title, results in data[media_type].items():
-            data[media_type][entity_title] = filter_tmdb_candidates(
+        for entity_title, results in tmdb_search_data[media_type].items():
+            tmdb_search_data[media_type][entity_title] = filter_tmdb_candidates(
                 results,
                 entity_title,
                 title_field,
                 release_date_field,
                 selection_cache[media_type].get(entity_title),
             )
-            filtered_results = data[media_type][entity_title]
+            filtered_results = tmdb_search_data[media_type][entity_title]
 
             if not filtered_results:
                 print(f"No exact {media_type[:-1]} match for {entity_title}.")
@@ -608,7 +689,7 @@ def filter_tmdb_data(data: dict):
         original_title_field,
         release_date_field,
     ) in media_types:
-        for entity_title, results in data[media_type].items():
+        for entity_title, results in tmdb_search_data[media_type].items():
             if len(results) <= 1:
                 continue
 
@@ -623,12 +704,13 @@ def filter_tmdb_data(data: dict):
             if selected_match is None:
                 continue
 
-            data[media_type][entity_title] = [selected_match]
+            tmdb_search_data[media_type][entity_title] = [selected_match]
             selection_cache[media_type][entity_title] = selected_match["id"]
             write_json(selection_cache, cache_file_path)
 
 
 def main():
+    """Convert TV Time CSV exports into JSON with TMDB metadata."""
     shows = {}
     movies = {}
     aggregated = {"shows": shows, "movies": movies}
@@ -642,17 +724,24 @@ def main():
     ]
     pass_counter = 1
     for file in show_files:
+        # Pull all available and relevant show data from all the relevant files.
         print(f"=== Pass {pass_counter}: Aggregating all show data ===")
         aggregate_show_data(shows, f"data/tvtime/{file}")
         write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
         pass_counter += 1
 
+    # Pull all available movie data. There is only a single file containing movie data.
     print(f"=== Pass {pass_counter}: Aggregating all movie data ===")
     sort_episodes_asc(shows)
     aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    # To improve access times media is stored as dictionaries, where each key
+    # is the name of the show or movie and its value a dict containing it's
+    # data. This is not ideal for the next steps in the processing pipeline, so
+    # we remove the keys and instead make it a list of dictionaries containing
+    # the show and movie data.
     print(f"=== Pass {pass_counter}: Flatten dictionary into list ===")
     print("Flatten dictionary")
     aggregated = {
@@ -664,24 +753,33 @@ def main():
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    # The data is partially inconsistent, containing watch data that is only a
+    # single millisecond apart. We need to fix that.
     print(f"=== Pass {pass_counter}: Deduplicate episode list ===")
     dedupe_episode_list(aggregated["shows"])
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
-    # tmdb_data = fetch_tmdb_data(aggregated)
-    tmdb_data = read_json("data/tvtime/tmdb_data.json")
-    refetch_empty_tmdb_data(aggregated, tmdb_data)
-    write_json(tmdb_data, "data/tvtime/tmdb_data.json")
-    filter_tmdb_data(tmdb_data)
+    # Now we query TMDB with the names of the shows and movies and store all
+    # the results it returns.
+    if os.path.exists(path_from_project_root(TMDB_SEARCH_CACHE_PATH)):
+        tmdb_search_data = read_json(TMDB_SEARCH_CACHE_PATH)
+    else:
+        tmdb_search_data = {"shows": {}, "movies": {}}
+    search_tmdb_for_missing(aggregated, tmdb_search_data)
+    write_json(tmdb_search_data, TMDB_SEARCH_CACHE_PATH)
 
+    # NOTE: Maybe cache data before this once?
+    filter_tmdb_data(tmdb_search_data)
+
+    # The results returned by the query only contains minimal data. So we need
+    # to fetch the details.
+    print(f"=== Pass {pass_counter}: Fetch detail data")
     if os.path.exists(path_from_project_root(TMDB_DETAILS_CACHE_PATH)):
         tmdb_details = read_json(TMDB_DETAILS_CACHE_PATH)
     else:
         tmdb_details = {"shows": {}, "movies": {}}
-
-    print(f"=== Pass {pass_counter}: Fetch detail data")
-    tmdb_details, fetch_failures = fetch_details(tmdb_data, tmdb_details)
+    tmdb_details, fetch_failures = fetch_details(tmdb_search_data, tmdb_details)
     write_json(tmdb_details, TMDB_DETAILS_CACHE_PATH)
 
     if fetch_failures:
@@ -691,8 +789,9 @@ def main():
             f"Failed to fetch {len(fetch_failures)} TMDB detail entries."
         )
 
+    # Now merge our data with the details fetched from TMDB
     print(f"=== Pass {pass_counter}: Enrich data")
-    enrich_data(aggregated, tmdb_data, tmdb_details)
+    enrich_data(aggregated, tmdb_search_data, tmdb_details)
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
