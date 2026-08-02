@@ -14,3 +14,9 @@ dependencies = [
 [project.scripts]
 url-decode = "decode_url:main"
 image-hashing = "image_hashing:main"
+
+[tool.pyright]
+include = ["src/tv_data"]
+extraPaths = ["src"]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
