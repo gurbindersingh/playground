@@ -34,7 +34,21 @@ from .tv_data import (
 
 
 def main() -> None:
-    """Convert TV Time CSV exports into JSON with TMDB metadata."""
+    """Run the complete TV Time conversion and TMDB enrichment pipeline.
+
+    The function reads the fixed CSV and cache paths under ``data/tvtime``,
+    writes a snapshot after each major conversion stage, and regenerates
+    ``watch_data_final.json`` as the stable path to the latest output. Raw TMDB
+    search results are saved before candidate filtering, while detail fetching
+    and enrichment use the filtered results.
+
+    This command prints progress, can prompt for ambiguous TMDB matches, makes
+    network requests when cache entries are missing, and requires
+    ``TMDB_TOKEN`` for those requests. Unhandled file, cache-validation, and
+    network errors stop the pipeline. Detail request failures are collected and
+    then stop final enrichment, while titles left without a selected ID remain
+    unresolved and continue through the pipeline with metadata defaults.
+    """
     shows: ShowIndex = {}
     movies: MovieIndex = {}
     indexed_watch_data: IndexedWatchData = {"shows": shows, "movies": movies}

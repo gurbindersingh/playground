@@ -26,8 +26,9 @@ def write_json(data: object, file_path: str) -> None:
     Data is first written and flushed to a temporary file beside the
     destination. Replacing the destination only after serialization succeeds
     prevents a failed write from truncating an existing file. Serialization and
-    file-system errors are passed to the caller, and any temporary file is
-    removed before the function returns or raises.
+    file-system errors are passed to the caller. Temporary-file cleanup is
+    attempted before the function returns or raises; a cleanup failure also
+    propagates.
     """
     destination = path_from_project_root(file_path)
     temporary_path: Path | None = None
