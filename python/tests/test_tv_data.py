@@ -333,6 +333,39 @@ def test_filter_tmdb_search_data_skips_and_reports_malformed_candidates(
     )
 
 
+def test_filter_tmdb_search_data_uses_only_valid_candidates_for_alternative_titles(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    alternative_title_calls = []
+
+    def fake_fetch_alternative_titles(media_type, tmdb_id):
+        alternative_title_calls.append((media_type, tmdb_id))
+        return ["Imported Show"]
+
+    monkeypatch.setattr(
+        tmdb, "fetch_tmdb_alternative_titles", fake_fetch_alternative_titles
+    )
+    valid_candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {
+        "shows": {"Imported Show": ["malformed", valid_candidate, None]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert alternative_title_calls == [("shows", 1)]
+    assert search_data["shows"]["Imported Show"] == [valid_candidate]
+
+
 def test_fetch_details_requests_and_caches_one_detail_per_id(monkeypatch):
     calls = []
 

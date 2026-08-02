@@ -1,6 +1,9 @@
 import copy
+import re
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
@@ -60,3 +63,43 @@ def test_main_keeps_raw_search_results_separate_from_filtered_results(monkeypatc
         writes[tv_data_main.TMDB_FILTERED_SEARCH_CACHE_PATH],
         writes[tv_data_main.TMDB_FILTERED_SEARCH_CACHE_PATH],
     ]
+
+
+@pytest.mark.parametrize(
+    ("existing_cache_path", "cache_data", "expected_error", "message"),
+    [
+        (
+            tv_data_main.TMDB_SEARCH_CACHE_PATH,
+            {"shows": {}},
+            TypeError,
+            "movies.*JSON object",
+        ),
+        (
+            tv_data_main.TMDB_DETAILS_CACHE_PATH,
+            {"shows": {"1": {"id": 2}}, "movies": {}},
+            ValueError,
+            "does not match detail ID",
+        ),
+    ],
+)
+def test_main_validates_existing_tmdb_caches_before_use(
+    monkeypatch, existing_cache_path, cache_data, expected_error, message
+):
+    monkeypatch.setattr(
+        tv_data_main.os.path,
+        "exists",
+        lambda path: str(path).endswith(Path(existing_cache_path).name),
+    )
+    monkeypatch.setattr(tv_data_main, "read_tmdb_cache", lambda _: cache_data)
+    monkeypatch.setattr(tv_data_main, "aggregate_show_data", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "aggregate_movie_data", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "sort_episodes_ascending", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "deduplicate_show_episodes", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "search_tmdb_for_missing", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "filter_tmdb_search_data", lambda *_: None)
+    monkeypatch.setattr(tv_data_main, "write_json", lambda *_: None)
+
+    with pytest.raises(
+        expected_error, match=rf"{re.escape(existing_cache_path)}.*{message}"
+    ):
+        tv_data_main.main()

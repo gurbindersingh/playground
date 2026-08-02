@@ -31,16 +31,19 @@ def test_validate_tmdb_search_cache_accepts_candidate_lists():
 
 
 @pytest.mark.parametrize(
-    "data",
+    ("data", "message"),
     [
-        None,
-        {"shows": {}},
-        {"shows": [], "movies": {}},
-        {"shows": {"Example Show": {}}, "movies": {}},
+        (None, "expected a JSON object"),
+        ({"shows": {}}, "movies.*JSON object"),
+        ({"shows": [], "movies": {}}, "shows.*JSON object"),
+        (
+            {"shows": {"Example Show": {}}, "movies": {}},
+            "title to a candidate list",
+        ),
     ],
 )
-def test_validate_tmdb_search_cache_rejects_invalid_structure(data):
-    with pytest.raises(TypeError, match=r"search\.json"):
+def test_validate_tmdb_search_cache_rejects_invalid_structure(data, message):
+    with pytest.raises(TypeError, match=rf"search\.json.*{message}"):
         tmdb.validate_tmdb_search_cache(data, "search.json")
 
 
@@ -56,7 +59,7 @@ def test_validate_tmdb_selection_cache_accepts_exact_integer_ids():
 def test_validate_tmdb_selection_cache_rejects_non_integer_ids(invalid_id):
     data = {"shows": {"Example Show": invalid_id}, "movies": {}}
 
-    with pytest.raises(TypeError, match=r"selection\.json"):
+    with pytest.raises(TypeError, match=r"selection\.json.*integer TMDB ID"):
         tmdb.validate_tmdb_selection_cache(data, "selection.json")
 
 
@@ -72,19 +75,45 @@ def test_validate_tmdb_details_cache_accepts_matching_integer_ids():
 
 
 @pytest.mark.parametrize(
-    ("details", "expected_error"),
+    ("details", "expected_error", "message"),
     [
-        ({"shows": [], "movies": {}}, TypeError),
-        ({"shows": {"1": []}, "movies": {}}, TypeError),
-        ({"shows": {"1": {"id": True}}, "movies": {}}, TypeError),
-        ({"shows": {"1": {"id": 2}}, "movies": {}}, ValueError),
-        ({"shows": {"1": {}}, "movies": {}}, TypeError),
+        ({"shows": [], "movies": {}}, TypeError, "shows.*JSON object"),
+        ({"shows": {"1": []}, "movies": {}}, TypeError, "integer detail ID"),
+        (
+            {"shows": {"1": {"id": True}}, "movies": {}},
+            TypeError,
+            "integer detail ID",
+        ),
+        (
+            {"shows": {"1": {"id": 2}}, "movies": {}},
+            ValueError,
+            "does not match detail ID",
+        ),
+        ({"shows": {"1": {}}, "movies": {}}, TypeError, "integer detail ID"),
     ],
 )
-def test_validate_tmdb_details_cache_rejects_invalid_entries(details, expected_error):
-    with pytest.raises(expected_error, match=r"details\.json"):
+def test_validate_tmdb_details_cache_rejects_invalid_entries(
+    details, expected_error, message
+):
+    with pytest.raises(expected_error, match=rf"details\.json.*{message}"):
         tmdb.validate_tmdb_details_cache(details, "details.json")
 
 
 def test_is_valid_tmdb_detail_rejects_boolean_id():
     assert not tmdb.is_valid_tmdb_detail({"id": True}, 1)
+
+
+def test_filter_tmdb_search_data_validates_existing_selection_cache(
+    monkeypatch, tmp_path
+):
+    selection_cache_path = tmp_path / "tmdb_selection_cache.json"
+    selection_cache_path.touch()
+    monkeypatch.setattr(tmdb, "path_from_project_root", lambda _: selection_cache_path)
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda _: {"shows": {}, "movies": []},
+    )
+
+    with pytest.raises(TypeError, match=r"tmdb_selection_cache\.json.*movies"):
+        tmdb.filter_tmdb_search_data({"shows": {}, "movies": {}})

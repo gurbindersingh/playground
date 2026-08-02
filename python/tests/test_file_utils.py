@@ -59,3 +59,25 @@ def test_write_json_preserves_existing_file_when_serialization_fails(
 
     assert destination.read_text(encoding="utf-8") == original_contents
     assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_write_json_preserves_existing_file_when_fsync_fails(monkeypatch, tmp_path):
+    destination = tmp_path / "data.json"
+    original_contents = '{"existing": "data"}'
+    destination.write_text(original_contents, encoding="utf-8")
+    monkeypatch.setattr(file_utils, "path_from_project_root", lambda _: destination)
+
+    def fail_fsync(_):
+        raise OSError("fsync failed")
+
+    def fail_replace(*_):
+        raise AssertionError("replace must not run")
+
+    monkeypatch.setattr(file_utils.os, "fsync", fail_fsync)
+    monkeypatch.setattr(file_utils.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="fsync failed"):
+        file_utils.write_json({"new": True}, "ignored.json")
+
+    assert destination.read_text(encoding="utf-8") == original_contents
+    assert list(tmp_path.iterdir()) == [destination]

@@ -106,6 +106,27 @@ def test_aggregate_show_data_ignores_reported_episode_count(monkeypatch):
     assert "total_episodes_watched" not in aggregated["Example Show"]
 
 
+def test_aggregate_show_data_does_not_replace_newer_archive_status(monkeypatch):
+    rows = [
+        {
+            "series_name": "Example Show",
+            "updated_at": "2024-03-01 10:00:00",
+            "is_archived": "true",
+        },
+        {
+            "series_name": "Example Show",
+            "updated_at": "2024-02-01 10:00:00",
+            "is_archived": "false",
+        },
+    ]
+    monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
+
+    aggregated = tv_data.aggregate_show_data({}, "ignored.csv")
+
+    assert aggregated["Example Show"]["updated_at"] == "2024-03-01 10:00:00"
+    assert aggregated["Example Show"]["is_archived"] is True
+
+
 def test_aggregate_show_data_reports_blank_name_with_csv_row(monkeypatch, capsys):
     rows = [
         {"series_name": "   "},
@@ -279,3 +300,22 @@ def test_deduplicate_episodes_returns_ascending_season_and_episode_order():
         (1, 2),
         (2, 1),
     ]
+
+
+def test_deduplicate_episodes_keeps_first_entry_when_timestamps_are_equal():
+    first_episode = {
+        "season": 1,
+        "episode": 1,
+        "updated_at": "2024-01-01 10:00:00",
+        "name": "First",
+    }
+    second_episode = {
+        "season": 1,
+        "episode": 1,
+        "updated_at": "2024-01-01 10:00:00",
+        "name": "Second",
+    }
+
+    deduplicated = tv_data.deduplicate_episodes([first_episode, second_episode])
+
+    assert deduplicated == [first_episode]
