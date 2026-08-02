@@ -28,6 +28,7 @@ from .models import (
 
 TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data.json"
+TMDB_FILTERED_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data_filtered.json"
 TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
 TMDB_REQUEST_TIMEOUT = 30
 TMDB_REQUEST_INTERVAL = 1 / 3
@@ -217,7 +218,7 @@ def fetch_tmdb_alternative_titles(media_type: str, tmdb_id: int) -> list[str]:
 
 
 def fetch_details(
-    tmdb_data: TMDBSearchData, cached_details: object
+    tmdb_search_data: TMDBSearchData, cached_details: object
 ) -> tuple[TMDBDetailsData, list[str]]:
     """Return TMDB details and errors for entries with one selected result."""
     raw_details = (
@@ -248,7 +249,7 @@ def fetch_details(
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     failures: list[str] = []
     attempted_ids: set[tuple[str, int]] = set()
-    total_entries = sum(len(tmdb_data[media_type]) for media_type in endpoints)
+    total_entries = sum(len(tmdb_search_data[media_type]) for media_type in endpoints)
     cached_count = 0
     fetched_count = 0
     unresolved_count = 0
@@ -256,7 +257,7 @@ def fetch_details(
     request_count = 0
 
     for media_type in ("shows", "movies"):
-        for migration_name, results in tmdb_data[media_type].items():
+        for migration_name, results in tmdb_search_data[media_type].items():
             progress += 1
             progress_prefix = (
                 f"[{progress}/{total_entries}] {media_type[:-1].title()}: "
@@ -406,6 +407,7 @@ def search_tmdb_for_missing(
         cached_results = tmdb_search_data.setdefault(media_type, {})
 
         for media in aggregated[media_type]:
+            # If it exists and is non-empty
             if cached_results.get(media["name"]):
                 continue
             if media_type == "shows":

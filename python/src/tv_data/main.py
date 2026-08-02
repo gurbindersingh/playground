@@ -16,6 +16,7 @@ from .models import (
 )
 from .tmdb import (
     TMDB_DETAILS_CACHE_PATH,
+    TMDB_FILTERED_SEARCH_CACHE_PATH,
     TMDB_SEARCH_CACHE_PATH,
     enrich_data,
     fetch_details,
@@ -45,18 +46,22 @@ def main() -> None:
     ]
     pass_counter = 1
     for file in show_files:
-        print(f"=== Pass {pass_counter}: Aggregating all show data ===")
+        print("=== Aggregating all show data ===")
         aggregate_show_data(shows, f"data/tvtime/{file}")
         write_json(indexed_data, f"data/tvtime/watch_data_{pass_counter}.json")
         pass_counter += 1
 
-    print(f"=== Pass {pass_counter}: Aggregating all movie data ===")
+    print("=== Sort episodes ===")
     sort_episodes_asc(shows)
+    write_json(indexed_data, f"data/tvtime/watch_data_{pass_counter}.json")
+    pass_counter += 1
+
+    print("=== Aggregating all movie data ===")
     aggregate_movie_data(movies, "data/tvtime/tracking-prod-records.csv")
     write_json(indexed_data, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
-    print(f"=== Pass {pass_counter}: Flatten dictionary into list ===")
+    print("=== Flatten dictionary into list ===")
     aggregated: AggregatedWatchData = {
         "shows": list(shows.values()),
         "movies": list(movies.values()),
@@ -64,11 +69,12 @@ def main() -> None:
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
-    print(f"=== Pass {pass_counter}: Deduplicate episode list ===")
+    print("=== Deduplicate episode list ===")
     dedupe_episode_list(aggregated["shows"])
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     pass_counter += 1
 
+    print("=== Search TMDB ===")
     tmdb_search_data: TMDBSearchData
     if os.path.exists(path_from_project_root(TMDB_SEARCH_CACHE_PATH)):
         tmdb_search_data = cast(TMDBSearchData, read_json(TMDB_SEARCH_CACHE_PATH))
@@ -76,9 +82,12 @@ def main() -> None:
         tmdb_search_data = {"shows": {}, "movies": {}}
     search_tmdb_for_missing(aggregated, tmdb_search_data)
     write_json(tmdb_search_data, TMDB_SEARCH_CACHE_PATH)
-    filter_tmdb_data(tmdb_search_data)
 
-    print(f"=== Pass {pass_counter}: Fetch detail data ===")
+    print("=== Filter TMDB search queries ===")
+    filter_tmdb_data(tmdb_search_data)
+    write_json(tmdb_search_data, TMDB_FILTERED_SEARCH_CACHE_PATH)
+
+    print("=== Fetch detail data ===")
     tmdb_details: TMDBDetailsData
     if os.path.exists(path_from_project_root(TMDB_DETAILS_CACHE_PATH)):
         tmdb_details = cast(TMDBDetailsData, read_json(TMDB_DETAILS_CACHE_PATH))
@@ -94,7 +103,7 @@ def main() -> None:
             f"Failed to fetch {len(fetch_failures)} TMDB detail entries."
         )
 
-    print(f"=== Pass {pass_counter}: Enrich data ===")
+    print("=== Enrich data ===")
     enrich_data(aggregated, tmdb_search_data, tmdb_details)
     write_json(aggregated, f"data/tvtime/watch_data_{pass_counter}.json")
     write_json(aggregated, "data/tvtime/watch_data_final.json")
