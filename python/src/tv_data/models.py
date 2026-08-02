@@ -63,7 +63,6 @@ class WatchData(TypedDict):
 
 class ShowWatchData(WatchData):
     is_archived: Required[bool]
-    total_episodes_watched: Required[int]
     episodes_watched: Required[list[WatchedEpisode]]
     first_air_date: NotRequired[str | None]
     last_air_date: NotRequired[str | None]

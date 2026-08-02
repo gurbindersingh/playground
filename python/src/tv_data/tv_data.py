@@ -18,7 +18,6 @@ MOVIE_NAME_COLUMN = "movie_name"
 CREATED_AT_COLUMN = "created_at"
 UPDATED_AT_COLUMN = "updated_at"
 IS_ARCHIVED_COLUMN = "is_archived"
-EPISODE_COUNT_COLUMN = "ep_watch_count"
 SHORT_SEASON_COLUMN = "s_no"
 SHORT_EPISODE_COLUMN = "ep_no"
 SEASON_NUMBER_COLUMN = "season_number"
@@ -53,7 +52,6 @@ def create_watch_record(
             "created_at": LATEST_TIMESTAMP,
             "updated_at": EARLIEST_TIMESTAMP,
             "is_archived": False,
-            "total_episodes_watched": 0,
             "episodes_watched": [],
         }
     return {
@@ -89,7 +87,6 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
         created_at = csv_row.get(CREATED_AT_COLUMN)
         updated_at = csv_row.get(UPDATED_AT_COLUMN)
         archived_value = csv_row.get(IS_ARCHIVED_COLUMN)
-        episode_count = csv_row.get(EPISODE_COUNT_COLUMN)
 
         if created_at and created_at < show_data["created_at"]:
             show_data["created_at"] = created_at
@@ -104,15 +101,7 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
                 ]
                 if show_data["is_archived"] != previous_archived_value:
                     print(f"Updated archived status for show {show_name}.")
-            if episode_count:
-                previous_episode_count = show_data["total_episodes_watched"]
-                show_data["total_episodes_watched"] = max(
-                    int(episode_count),
-                    show_data["total_episodes_watched"],
-                )
-                if show_data["total_episodes_watched"] != previous_episode_count:
-                    print(f"Updated episode count for show {show_name}.")
-            if archived_value or episode_count:
+            if archived_value:
                 show_data["updated_at"] = updated_at
 
         for season_column, episode_column in (
@@ -176,21 +165,12 @@ def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
     print("Deduplicating episode lists")
 
     for show_record in shows:
-        recorded_episode_count = show_record["total_episodes_watched"]
         watched_episodes = show_record["episodes_watched"]
         unique_episodes = deduplicate_episodes(watched_episodes)
 
         if unique_episodes != watched_episodes:
             print(f"Removing duplicate episodes for {show_record['name']}")
         show_record["episodes_watched"] = unique_episodes
-
-        if recorded_episode_count != len(unique_episodes):
-            print(
-                f"Discrepancy for show {show_record['name']}:",
-                f"Total watched is {recorded_episode_count} but episode list contains {len(unique_episodes)}.",
-            )
-            for index, episode in enumerate(unique_episodes, start=1):
-                print(f"{index}:", episode)
         print("-")
 
 

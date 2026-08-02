@@ -38,7 +38,7 @@ def test_aggregate_show_data_reads_both_episode_column_formats(
     ] == expected_episode_numbers
 
 
-def test_aggregate_show_data_merges_timestamps_counts_and_episode_columns(monkeypatch):
+def test_aggregate_show_data_merges_timestamps_archive_and_episode_columns(monkeypatch):
     rows = [
         {
             "series_name": " Example Show ",
@@ -73,7 +73,6 @@ def test_aggregate_show_data_merges_timestamps_counts_and_episode_columns(monkey
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-03-02 10:00:00",
             "is_archived": True,
-            "total_episodes_watched": 3,
             "episodes_watched": [
                 {"season": 1, "episode": 1, "updated_at": "2024-02-02 10:00:00"},
                 {"season": 1, "episode": 2, "updated_at": "2024-03-02 10:00:00"},
@@ -82,9 +81,7 @@ def test_aggregate_show_data_merges_timestamps_counts_and_episode_columns(monkey
     }
 
 
-def test_aggregate_show_data_does_not_advance_update_for_metadata_free_row(
-    monkeypatch,
-):
+def test_aggregate_show_data_ignores_reported_episode_count(monkeypatch):
     rows = [
         {
             "series_name": "Example Show",
@@ -98,7 +95,7 @@ def test_aggregate_show_data_does_not_advance_update_for_metadata_free_row(
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-02-01 10:00:00",
             "is_archived": "",
-            "ep_watch_count": "",
+            "ep_watch_count": "99",
         },
     ]
     monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
@@ -106,6 +103,7 @@ def test_aggregate_show_data_does_not_advance_update_for_metadata_free_row(
     aggregated = tv_data.aggregate_show_data({}, "ignored.csv")
 
     assert aggregated["Example Show"]["updated_at"] == "2024-01-02 10:00:00"
+    assert "total_episodes_watched" not in aggregated["Example Show"]
 
 
 def test_aggregate_movie_data_keeps_earliest_creation_and_latest_update(monkeypatch):
@@ -140,7 +138,6 @@ def test_sort_episodes_ascending_orders_by_season_and_episode():
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
             "is_archived": False,
-            "total_episodes_watched": 2,
             "episodes_watched": [
                 {"season": 2, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
                 {"season": 1, "episode": 2, "updated_at": "2024-01-02 10:00:00"},
@@ -152,7 +149,6 @@ def test_sort_episodes_ascending_orders_by_season_and_episode():
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
             "is_archived": False,
-            "total_episodes_watched": 0,
             "episodes_watched": [],
         },
     }
@@ -173,7 +169,6 @@ def test_deduplicate_show_episodes_removes_duplicate_and_zero_episode_entries():
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
             "is_archived": False,
-            "total_episodes_watched": 2,
             "episodes_watched": [
                 {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"},
                 {"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
@@ -216,7 +211,6 @@ def test_deduplicate_show_episodes_always_cleans_episode_list(
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
             "is_archived": False,
-            "total_episodes_watched": len(episodes),
             "episodes_watched": episodes,
         }
     ]
