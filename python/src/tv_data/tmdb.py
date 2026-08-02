@@ -573,14 +573,19 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         ("shows", "name", "original_name", "first_air_date"),
         ("movies", "title", "original_title", "release_date"),
     )
-    review_entries: dict[tuple[str, str], tuple[list[TMDBSearchCandidate], str]] = {}
+    review_entries: dict[
+        tuple[str, str],
+        tuple[list[TMDBSearchCandidate], str, tuple[str, str, str]],
+    ] = {}
     alternative_titles_cache: dict[tuple[str, int], list[str]] = {}
 
-    for media_type, title_field, _, date_field in media_type_configs:
+    for (
+        media_type,
+        title_field,
+        original_title_field,
+        date_field,
+    ) in media_type_configs:
         for source_title, search_candidates in tmdb_search_data[media_type].items():
-            original_title_field = (
-                "original_name" if media_type == "shows" else "original_title"
-            )
             filtered_results, reason = filter_tmdb_candidates(
                 cast(list[object], search_candidates),
                 source_title,
@@ -631,22 +636,24 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                 "alternative title",
                 "alternative title and year",
             }:
-                review_entries[(media_type, source_title)] = (filtered_results, reason)
+                review_entries[(media_type, source_title)] = (
+                    filtered_results,
+                    reason,
+                    (title_field, original_title_field, date_field),
+                )
 
     print(f"Entries requiring review: {len(review_entries)}")
 
-    for (media_type, source_title), (search_candidates, reason) in review_entries.items():
+    for (media_type, source_title), (
+        search_candidates,
+        reason,
+        review_fields,
+    ) in review_entries.items():
         if not search_candidates:
             print(f"No TMDB candidates for {media_type[:-1]} {source_title}.")
             continue
 
-        title_field = "name" if media_type == "shows" else "title"
-        original_title_field = (
-            "original_name" if media_type == "shows" else "original_title"
-        )
-        date_field = (
-            "first_air_date" if media_type == "shows" else "release_date"
-        )
+        title_field, original_title_field, date_field = review_fields
         selected_match = choose_tmdb_match(
             source_title,
             media_type,
