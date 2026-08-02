@@ -120,7 +120,7 @@ def main() -> None:
     filter_tmdb_search_data(tmdb_search_data)
     write_json(tmdb_search_data, TMDB_FILTERED_SEARCH_CACHE_PATH)
 
-    print("=== Fetch detail data ===")
+    print("=== Fetch details for media ===")
     tmdb_details: TMDBDetailsData
     if os.path.exists(path_from_project_root(TMDB_DETAILS_CACHE_PATH)):
         tmdb_details = validate_tmdb_details_cache(

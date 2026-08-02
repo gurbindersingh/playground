@@ -89,11 +89,12 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
     The supplied ``show_index`` is mutated and returned for convenient chaining.
     Rows with blank names are reported and skipped. For each show, aggregation
     keeps the earliest creation timestamp, and collects episodes from both TV
-    Time column naming formats. A nonblank archive value on a row at least as
+    Time column naming formats. A truthy raw archive value on a row at least as
     new as the stored update changes archive status; only ``"true"`` and ``"1"``
     mean archived. Episode numbers are converted to integers, and a missing
-    season is stored as ``-1``. Invalid numbers or a missing episode update
-    timestamp raise normal conversion or key errors.
+    season is stored as ``-1``. Invalid numbers or a missing ``updated_at`` key
+    for an imported episode raise normal conversion or key errors; blank cell
+    values are not validated.
 
     Progress and changed metadata are printed to standard output.
     """
