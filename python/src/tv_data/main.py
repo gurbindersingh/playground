@@ -1,11 +1,10 @@
 """Run the TV Time conversion pipeline."""
 
 import os
-from typing import cast
 
 from utils.path_utils import path_from_project_root
 
-from .file_utils import read_json, write_json
+from .file_utils import write_json
 from .models import (
     AggregatedWatchData,
     IndexedWatchData,
@@ -21,7 +20,10 @@ from .tmdb import (
     enrich_watch_data,
     fetch_details,
     filter_tmdb_search_data,
+    read_tmdb_cache,
     search_tmdb_for_missing,
+    validate_tmdb_details_cache,
+    validate_tmdb_search_cache,
 )
 from .tv_data import (
     aggregate_movie_data,
@@ -92,7 +94,9 @@ def main() -> None:
     print("=== Search TMDB ===")
     tmdb_search_data: TMDBSearchData
     if os.path.exists(path_from_project_root(TMDB_SEARCH_CACHE_PATH)):
-        tmdb_search_data = cast(TMDBSearchData, read_json(TMDB_SEARCH_CACHE_PATH))
+        tmdb_search_data = validate_tmdb_search_cache(
+            read_tmdb_cache(TMDB_SEARCH_CACHE_PATH), TMDB_SEARCH_CACHE_PATH
+        )
     else:
         tmdb_search_data = {"shows": {}, "movies": {}}
     search_tmdb_for_missing(aggregated_watch_data, tmdb_search_data)
@@ -105,7 +109,9 @@ def main() -> None:
     print("=== Fetch detail data ===")
     tmdb_details: TMDBDetailsData
     if os.path.exists(path_from_project_root(TMDB_DETAILS_CACHE_PATH)):
-        tmdb_details = cast(TMDBDetailsData, read_json(TMDB_DETAILS_CACHE_PATH))
+        tmdb_details = validate_tmdb_details_cache(
+            read_tmdb_cache(TMDB_DETAILS_CACHE_PATH), TMDB_DETAILS_CACHE_PATH
+        )
     else:
         tmdb_details = {"shows": {}, "movies": {}}
     tmdb_details, fetch_failures = fetch_details(tmdb_search_data, tmdb_details)

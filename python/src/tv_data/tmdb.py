@@ -1,5 +1,6 @@
 """TMDB search, matching, caching, and metadata enrichment."""
 
+import json
 import os
 import re
 import time
@@ -30,6 +31,7 @@ TMDB_API_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data.json"
 TMDB_FILTERED_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data_filtered.json"
 TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
+TMDB_SELECTION_CACHE_PATH = "data/tvtime/tmdb_selection_cache.json"
 TMDB_REQUEST_TIMEOUT = 30
 TMDB_REQUEST_INTERVAL = 1 / 3
 
@@ -79,6 +81,95 @@ EPISODE_METADATA_FIELDS = (
     "vote_average",
     "vote_count",
 )
+
+
+def read_tmdb_cache(cache_path: str) -> object:
+    """Read a TMDB cache and add its path to file or JSON errors.
+
+    Structure validation is handled separately because each cache type has a
+    different schema.
+    """
+    try:
+        return read_json(cache_path)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(
+            f"Could not read TMDB cache at {cache_path}: {error}"
+        ) from error
+
+
+def _require_tmdb_cache_sections(data: object, cache_path: str) -> dict[str, object]:
+    """Return a cache object containing dictionary show and movie sections."""
+    if not isinstance(data, dict):
+        raise TypeError(f"Invalid TMDB cache at {cache_path}: expected a JSON object.")
+
+    for media_type in ("shows", "movies"):
+        if not isinstance(data.get(media_type), dict):
+            raise TypeError(
+                f"Invalid TMDB cache at {cache_path}: expected '{media_type}' "
+                "to be a JSON object."
+            )
+
+    return cast(dict[str, object], data)
+
+
+def validate_tmdb_search_cache(data: object, cache_path: str) -> TMDBSearchData:
+    """Validate the container structure used by a TMDB search cache.
+
+    Candidate entries are deliberately not validated here. Filtering handles
+    malformed candidates separately so one bad result does not invalidate the
+    entire cache.
+    """
+    cache = _require_tmdb_cache_sections(data, cache_path)
+    for media_type in ("shows", "movies"):
+        section = cast(dict[object, object], cache[media_type])
+        for source_title, candidates in section.items():
+            if not isinstance(source_title, str) or not isinstance(candidates, list):
+                raise TypeError(
+                    f"Invalid TMDB search cache at {cache_path}: expected every "
+                    f"'{media_type}' entry to map a title to a candidate list."
+                )
+
+    return cast(TMDBSearchData, cache)
+
+
+def validate_tmdb_selection_cache(data: object, cache_path: str) -> TMDBSelectionCache:
+    """Validate title-to-integer-ID mappings in a manual-selection cache."""
+    cache = _require_tmdb_cache_sections(data, cache_path)
+    for media_type in ("shows", "movies"):
+        section = cast(dict[object, object], cache[media_type])
+        for source_title, tmdb_id in section.items():
+            if not isinstance(source_title, str) or type(tmdb_id) is not int:
+                raise TypeError(
+                    f"Invalid TMDB selection cache at {cache_path}: expected every "
+                    f"'{media_type}' entry to map a title to an integer TMDB ID."
+                )
+
+    return cast(TMDBSelectionCache, cache)
+
+
+def validate_tmdb_details_cache(data: object, cache_path: str) -> TMDBDetailsData:
+    """Validate ID-keyed show and movie detail mappings from a cache."""
+    cache = _require_tmdb_cache_sections(data, cache_path)
+    for media_type in ("shows", "movies"):
+        section = cast(dict[object, object], cache[media_type])
+        for cache_key, detail in section.items():
+            if (
+                not isinstance(cache_key, str)
+                or not isinstance(detail, dict)
+                or type(detail.get("id")) is not int
+            ):
+                raise TypeError(
+                    f"Invalid TMDB details cache at {cache_path}: expected every "
+                    f"'{media_type}' entry to use a string TMDB ID key matching "
+                    "an integer detail ID."
+                )
+            if cache_key != str(detail["id"]):
+                raise ValueError(
+                    f"Invalid TMDB details cache at {cache_path}: key {cache_key!r} "
+                    f"does not match detail ID {detail['id']!r}."
+                )
+
+    return cast(TMDBDetailsData, cache)
 
 
 def parse_title_and_year(name: str) -> tuple[str, str | None]:
@@ -147,7 +238,11 @@ def get_single_candidate_id(candidates: object) -> int | None:
 
 def is_valid_tmdb_detail(detail: object, tmdb_id: int) -> bool:
     """Return whether ``detail`` is a dictionary with the expected TMDB ID."""
-    return isinstance(detail, dict) and detail.get("id") == tmdb_id
+    return (
+        isinstance(detail, dict)
+        and type(detail.get("id")) is int
+        and detail.get("id") == tmdb_id
+    )
 
 
 def normalize_tmdb_title(title: str) -> str:
@@ -542,13 +637,12 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     The caller owns persistence of the filtered search data. This function
     writes only the separate manual-selection cache when a choice is made.
     """
-    selection_cache_path = "data/tvtime/tmdb_selection_cache.json"
-    if os.path.exists(path_from_project_root(selection_cache_path)):
-        selection_cache = cast(TMDBSelectionCache, read_json(selection_cache_path))
+    if os.path.exists(path_from_project_root(TMDB_SELECTION_CACHE_PATH)):
+        selection_cache = validate_tmdb_selection_cache(
+            read_tmdb_cache(TMDB_SELECTION_CACHE_PATH), TMDB_SELECTION_CACHE_PATH
+        )
     else:
         selection_cache: TMDBSelectionCache = {"shows": {}, "movies": {}}
-    selection_cache.setdefault("shows", {})
-    selection_cache.setdefault("movies", {})
 
     media_type_configs = (
         ("shows", "name", "original_name", "first_air_date"),
@@ -651,4 +745,4 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         selected_tmdb_id = selected_match.get("id")
         if type(selected_tmdb_id) is int:
             selection_cache[media_type][source_title] = selected_tmdb_id
-        write_json(selection_cache, selection_cache_path)
+        write_json(selection_cache, TMDB_SELECTION_CACHE_PATH)
