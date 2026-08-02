@@ -181,24 +181,24 @@ def sort_episodes_ascending(show_index: ShowIndex) -> None:
 
 
 def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
-    """Remove duplicate episodes when a list exceeds its recorded total."""
+    """Remove duplicate and placeholder episodes from each show."""
     print("Deduplicating episode lists")
 
     for show_record in shows:
         recorded_episode_count = show_record["total_episodes_watched"]
         watched_episodes = show_record["episodes_watched"]
+        unique_episodes = deduplicate_episodes(watched_episodes)
 
-        if recorded_episode_count < len(watched_episodes):
+        if unique_episodes != watched_episodes:
             print(f"Removing duplicate episodes for {show_record['name']}")
-            show_record["episodes_watched"] = deduplicate_episodes(watched_episodes)
-            watched_episodes = show_record["episodes_watched"]
+        show_record["episodes_watched"] = unique_episodes
 
-        if recorded_episode_count != len(show_record["episodes_watched"]):
+        if recorded_episode_count != len(unique_episodes):
             print(
                 f"Discrepancy for show {show_record['name']}:",
-                f"Total watched is {recorded_episode_count} but episode list contains {len(watched_episodes)}.",
+                f"Total watched is {recorded_episode_count} but episode list contains {len(unique_episodes)}.",
             )
-            for index, episode in enumerate(watched_episodes, start=1):
+            for index, episode in enumerate(unique_episodes, start=1):
                 print(f"{index}:", episode)
         print("-")
 
@@ -216,5 +216,4 @@ def deduplicate_episodes(
         if episode_key not in seen_episode_keys:
             seen_episode_keys.add(episode_key)
             unique_episodes.append(episode)
-    print("Length of new episode list:", len(unique_episodes))
     return unique_episodes
