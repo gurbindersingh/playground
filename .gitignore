@@ -10,3 +10,4 @@ temp
 logs
 data
 python.egg-info
+python/build/lib
