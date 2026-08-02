@@ -166,10 +166,9 @@ def sort_episodes_ascending(show_index: ShowIndex) -> None:
     """Sort each episode list in place by season and episode number."""
     print("Sorting episode lists")
     for show_data in show_index.values():
-        if show_data.get("episodes_watched"):
-            show_data["episodes_watched"].sort(
-                key=lambda episode: (episode["season"], episode["episode"])
-            )
+        show_data["episodes_watched"].sort(
+            key=lambda episode: (episode["season"], episode["episode"])
+        )
 
 
 def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:

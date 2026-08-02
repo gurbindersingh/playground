@@ -89,11 +89,6 @@ def parse_title_and_year(name: str) -> tuple[str, str | None]:
     return name, None
 
 
-def _as_search_page(decoded_response: object) -> TMDBSearchPage:
-    """Treat a decoded TMDB search response as a search page."""
-    return cast(TMDBSearchPage, decoded_response)
-
-
 def search_tmdb(aggregated_watch_data: AggregatedWatchData) -> TMDBSearchData:
     """Return all TMDB search results for each show and movie."""
     print("Fetching search results")
@@ -127,7 +122,7 @@ def search_tmdb(aggregated_watch_data: AggregatedWatchData) -> TMDBSearchData:
                 time.sleep(TMDB_REQUEST_INTERVAL)
                 response.raise_for_status()
 
-                search_page = _as_search_page(response.json())
+                search_page = cast(TMDBSearchPage, response.json())
                 search_candidates.extend(search_page["results"])
                 total_pages = search_page["total_pages"]
                 page += 1
@@ -222,29 +217,9 @@ def fetch_tmdb_alternative_titles(media_type: str, tmdb_id: int) -> list[str]:
 
 
 def fetch_details(
-    tmdb_search_data: TMDBSearchData, cached_details: object
+    tmdb_search_data: TMDBSearchData, details: TMDBDetailsData
 ) -> tuple[TMDBDetailsData, list[str]]:
     """Return TMDB details and errors for entries with one selected result."""
-    raw_details = (
-        cast(dict[str, object], cached_details)
-        if isinstance(cached_details, dict)
-        else {}
-    )
-    raw_shows = raw_details.get("shows")
-    raw_movies = raw_details.get("movies")
-    details: TMDBDetailsData = {
-        "shows": (
-            cast(dict[str, TMDBShowDetail], raw_shows)
-            if isinstance(raw_shows, dict)
-            else {}
-        ),
-        "movies": (
-            cast(dict[str, TMDBMovieDetail], raw_movies)
-            if isinstance(raw_movies, dict)
-            else {}
-        ),
-    }
-
     endpoints = {
         "shows": f"{TMDB_API_BASE_URL}/tv",
         "movies": f"{TMDB_API_BASE_URL}/movie",
@@ -540,8 +515,10 @@ def choose_tmdb_match(
         ).strip()
         if choice.lower() in ("s", "skip"):
             return None
-        if choice.isdigit() and 1 <= int(choice) <= len(candidates):
-            return candidates[int(choice) - 1]
+        if choice.isdigit():
+            choice_number = int(choice)
+            if 1 <= choice_number <= len(candidates):
+                return candidates[choice_number - 1]
         print(f"Enter a number from 1 to {len(candidates)}.")
 
 
