@@ -86,38 +86,34 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
             show_index[show_name] = create_watch_record(show_name)
 
         show_data = show_index[show_name]
+        created_at = csv_row.get(CREATED_AT_COLUMN)
+        updated_at = csv_row.get(UPDATED_AT_COLUMN)
+        archived_value = csv_row.get(IS_ARCHIVED_COLUMN)
+        episode_count = csv_row.get(EPISODE_COUNT_COLUMN)
 
-        if (
-            csv_row.get(CREATED_AT_COLUMN)
-            and csv_row[CREATED_AT_COLUMN] < show_data["created_at"]
-        ):
-            show_data["created_at"] = csv_row[CREATED_AT_COLUMN]
+        if created_at and created_at < show_data["created_at"]:
+            show_data["created_at"] = created_at
             print(f"Updated 'created_at' timestamp for show {show_name}.")
 
-        if (
-            csv_row.get(UPDATED_AT_COLUMN)
-            and csv_row[UPDATED_AT_COLUMN] >= show_data["updated_at"]
-        ):
-            if csv_row.get(IS_ARCHIVED_COLUMN):
+        if updated_at and updated_at >= show_data["updated_at"]:
+            if archived_value:
                 previous_archived_value = show_data["is_archived"]
-                show_data["is_archived"] = csv_row[
-                    IS_ARCHIVED_COLUMN
-                ].lower().strip() in [
+                show_data["is_archived"] = archived_value.lower().strip() in [
                     "true",
                     "1",
                 ]
-                show_data["updated_at"] = csv_row[UPDATED_AT_COLUMN]
                 if show_data["is_archived"] != previous_archived_value:
                     print(f"Updated archived status for show {show_name}.")
-            if csv_row.get(EPISODE_COUNT_COLUMN):
+            if episode_count:
                 previous_episode_count = show_data["total_episodes_watched"]
                 show_data["total_episodes_watched"] = max(
-                    int(csv_row[EPISODE_COUNT_COLUMN]),
+                    int(episode_count),
                     show_data["total_episodes_watched"],
                 )
-                show_data["updated_at"] = csv_row[UPDATED_AT_COLUMN]
                 if show_data["total_episodes_watched"] != previous_episode_count:
                     print(f"Updated episode count for show {show_name}.")
+            if archived_value or episode_count:
+                show_data["updated_at"] = updated_at
 
         for season_column, episode_column in (
             (SHORT_SEASON_COLUMN, SHORT_EPISODE_COLUMN),
@@ -154,18 +150,14 @@ def aggregate_movie_data(movie_index: MovieIndex, file_path: str) -> MovieIndex:
             movie_index[movie_name] = create_watch_record(movie_name, "movie")
 
         movie_data = movie_index[movie_name]
+        created_at = csv_row.get(CREATED_AT_COLUMN)
+        updated_at = csv_row.get(UPDATED_AT_COLUMN)
 
-        if csv_row.get(CREATED_AT_COLUMN) and (
-            not movie_data["created_at"]
-            or csv_row[CREATED_AT_COLUMN] < movie_data["created_at"]
-        ):
-            movie_data["created_at"] = csv_row[CREATED_AT_COLUMN]
+        if created_at and created_at < movie_data["created_at"]:
+            movie_data["created_at"] = created_at
 
-        if (
-            csv_row.get(UPDATED_AT_COLUMN)
-            and csv_row[UPDATED_AT_COLUMN] >= movie_data["updated_at"]
-        ):
-            movie_data["updated_at"] = csv_row[UPDATED_AT_COLUMN]
+        if updated_at and updated_at >= movie_data["updated_at"]:
+            movie_data["updated_at"] = updated_at
 
     return movie_index
 
