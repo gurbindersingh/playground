@@ -306,6 +306,33 @@ def test_filter_tmdb_search_data_uses_movie_fields_for_review(monkeypatch, tmp_p
     ]
 
 
+def test_filter_tmdb_search_data_skips_and_reports_malformed_candidates(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    valid_candidate = {
+        "id": 1,
+        "name": "Imported Show",
+        "original_name": "Imported Show",
+    }
+    search_data = {
+        "shows": {"Imported Show": ["malformed", valid_candidate, None]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data["shows"]["Imported Show"] == [valid_candidate]
+    assert (
+        "Skipping 2 malformed TMDB candidates for show Imported Show."
+        in capsys.readouterr().out
+    )
+
+
 def test_fetch_details_requests_and_caches_one_detail_per_id(monkeypatch):
     calls = []
 

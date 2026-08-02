@@ -661,17 +661,30 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         date_field,
     ) in media_type_configs:
         for source_title, search_candidates in tmdb_search_data[media_type].items():
+            valid_search_candidates = [
+                cast(TMDBSearchCandidate, candidate)
+                for candidate in search_candidates
+                if isinstance(candidate, dict)
+            ]
+            malformed_count = len(search_candidates) - len(valid_search_candidates)
+            if malformed_count:
+                candidate_label = "candidate" if malformed_count == 1 else "candidates"
+                print(
+                    f"Skipping {malformed_count} malformed TMDB {candidate_label} "
+                    f"for {media_type[:-1]} {source_title}."
+                )
+
             filtered_results, reason = filter_tmdb_candidates(
-                cast(list[object], search_candidates),
+                cast(list[object], valid_search_candidates),
                 source_title,
                 title_field,
                 original_title_field,
                 date_field,
                 selection_cache[media_type].get(source_title),
             )
-            if reason == "no exact title match" and search_candidates:
+            if reason == "no exact title match" and valid_search_candidates:
                 alternative_titles: dict[int, list[str]] = {}
-                for candidate in search_candidates:
+                for candidate in valid_search_candidates:
                     tmdb_id = candidate.get("id")
                     if type(tmdb_id) is not int:
                         continue
@@ -694,7 +707,7 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                     alternative_titles[tmdb_id] = alternative_titles_cache[cache_key]
 
                 filtered_results, reason = filter_tmdb_candidates(
-                    cast(list[object], search_candidates),
+                    cast(list[object], valid_search_candidates),
                     source_title,
                     title_field,
                     original_title_field,

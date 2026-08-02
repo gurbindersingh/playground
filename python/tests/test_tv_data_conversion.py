@@ -106,6 +106,26 @@ def test_aggregate_show_data_ignores_reported_episode_count(monkeypatch):
     assert "total_episodes_watched" not in aggregated["Example Show"]
 
 
+def test_aggregate_show_data_reports_blank_name_with_csv_row(monkeypatch, capsys):
+    rows = [
+        {"series_name": "   "},
+        {
+            "series_name": "Example Show",
+            "created_at": "2024-01-01 10:00:00",
+            "updated_at": "2024-01-02 10:00:00",
+            "is_archived": "false",
+        },
+    ]
+    monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
+
+    aggregated = tv_data.aggregate_show_data({}, "shows.csv")
+
+    assert list(aggregated) == ["Example Show"]
+    assert (
+        "Skipping blank show name in shows.csv at CSV row 2." in capsys.readouterr().out
+    )
+
+
 def test_aggregate_movie_data_keeps_earliest_creation_and_latest_update(monkeypatch):
     rows = [
         {
@@ -129,6 +149,26 @@ def test_aggregate_movie_data_keeps_earliest_creation_and_latest_update(monkeypa
         "updated_at": "2024-03-02 10:00:00",
         "watched": True,
     }
+
+
+def test_aggregate_movie_data_reports_blank_name_with_csv_row(monkeypatch, capsys):
+    rows = [
+        {"movie_name": "\t"},
+        {
+            "movie_name": "Example Movie",
+            "created_at": "2024-01-01 10:00:00",
+            "updated_at": "2024-01-02 10:00:00",
+        },
+    ]
+    monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
+
+    aggregated = tv_data.aggregate_movie_data({}, "movies.csv")
+
+    assert list(aggregated) == ["Example Movie"]
+    assert (
+        "Skipping blank movie name in movies.csv at CSV row 2."
+        in capsys.readouterr().out
+    )
 
 
 def test_sort_episodes_ascending_orders_by_season_and_episode():

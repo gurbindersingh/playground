@@ -75,10 +75,11 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
     print(f"Running aggregation on file {file_path}")
     csv_rows = read_csv_rows(file_path)
 
-    for csv_row in csv_rows:
-        if not csv_row.get(SERIES_NAME_COLUMN):
+    for row_number, csv_row in enumerate(csv_rows, start=2):
+        show_name = (csv_row.get(SERIES_NAME_COLUMN) or "").strip()
+        if not show_name:
+            print(f"Skipping blank show name in {file_path} at CSV row {row_number}.")
             continue
-        show_name = csv_row[SERIES_NAME_COLUMN].strip()
 
         if show_name not in show_index:
             show_index[show_name] = create_watch_record(show_name)
@@ -129,11 +130,11 @@ def aggregate_movie_data(movie_index: MovieIndex, file_path: str) -> MovieIndex:
     print(f"Running aggregation on file {file_path}")
     csv_rows = read_csv_rows(file_path)
 
-    for csv_row in csv_rows:
-        if not csv_row.get(MOVIE_NAME_COLUMN):
+    for row_number, csv_row in enumerate(csv_rows, start=2):
+        movie_name = (csv_row.get(MOVIE_NAME_COLUMN) or "").strip()
+        if not movie_name:
+            print(f"Skipping blank movie name in {file_path} at CSV row {row_number}.")
             continue
-
-        movie_name = csv_row[MOVIE_NAME_COLUMN].strip()
 
         if movie_name not in movie_index:
             movie_index[movie_name] = create_watch_record(movie_name, "movie")
