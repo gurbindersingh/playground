@@ -13,33 +13,51 @@ from .models import (
     WatchedEpisode,
 )
 
+SERIES_NAME_COLUMN = "series_name"
+MOVIE_NAME_COLUMN = "movie_name"
+CREATED_AT_COLUMN = "created_at"
+UPDATED_AT_COLUMN = "updated_at"
+ARCHIVED_COLUMN = "is_archived"
+EPISODE_COUNT_COLUMN = "ep_watch_count"
+SEASON_COLUMN = "s_no"
+EPISODE_COLUMN = "ep_no"
+ALTERNATE_SEASON_COLUMN = "season_number"
+ALTERNATE_EPISODE_COLUMN = "episode_number"
+
+# TV Time exports use sortable timestamp strings. These are ordering sentinels,
+# not timestamps that should be parsed as dates.
+EARLIEST_TIMESTAMP = "0000-00-00 00:00:00"
+LATEST_TIMESTAMP = "9999-99-99 99:99:99"
+
 
 @overload
-def new_watch_data(name: str, type: Literal["show"] = "show") -> ShowWatchData: ...
+def new_watch_data(
+    name: str, media_type: Literal["show"] = "show"
+) -> ShowWatchData: ...
 
 
 @overload
-def new_watch_data(name: str, type: Literal["movie"]) -> MovieWatchData: ...
+def new_watch_data(name: str, media_type: Literal["movie"]) -> MovieWatchData: ...
 
 
 def new_watch_data(
-    name: str, type: Literal["show", "movie"] = "show"
+    name: str, media_type: Literal["show", "movie"] = "show"
 ) -> ShowWatchData | MovieWatchData:
     """Return an initialized watch record for a show or movie."""
-    if type == "show":
+    if media_type == "show":
         return {
             "name": name,
             # These defaults make overwrite conditions simpler and sorting easier.
-            "created_at": "9999-99-99 99:99:99",
-            "updated_at": "0000-00-00 00:00:00",
+            "created_at": LATEST_TIMESTAMP,
+            "updated_at": EARLIEST_TIMESTAMP,
             "is_archived": False,
             "total_episodes_watched": 0,
             "episodes_watched": [],
         }
     return {
         "name": name,
-        "created_at": "9999-99-99 99:99:99",
-        "updated_at": "0000-00-00 00:00:00",
+        "created_at": LATEST_TIMESTAMP,
+        "updated_at": EARLIEST_TIMESTAMP,
         "watched": True,
     }
 
@@ -58,47 +76,58 @@ def aggregate_show_data(aggregated: ShowIndex, file_path: str) -> ShowIndex:
     raw_watch_data = read_csv_data(file_path)
 
     for entry in raw_watch_data:
-        if not entry.get("series_name"):
+        if not entry.get(SERIES_NAME_COLUMN):
             continue
-        show = entry["series_name"].strip()
+        show = entry[SERIES_NAME_COLUMN].strip()
 
         if show not in aggregated:
             aggregated[show] = new_watch_data(show)
 
         show_data = aggregated[show]
 
-        if entry.get("created_at") and entry["created_at"] < show_data["created_at"]:
-            show_data["created_at"] = entry["created_at"]
+        if (
+            entry.get(CREATED_AT_COLUMN)
+            and entry[CREATED_AT_COLUMN] < show_data["created_at"]
+        ):
+            show_data["created_at"] = entry[CREATED_AT_COLUMN]
             print(f"Updated 'created_at' timestamp for show {show}.")
 
-        if entry.get("updated_at") and entry["updated_at"] >= show_data["updated_at"]:
-            if entry.get("is_archived"):
+        if (
+            entry.get(UPDATED_AT_COLUMN)
+            and entry[UPDATED_AT_COLUMN] >= show_data["updated_at"]
+        ):
+            if entry.get(ARCHIVED_COLUMN):
                 old_value = show_data["is_archived"]
-                show_data["is_archived"] = entry["is_archived"].lower().strip() in [
+                show_data["is_archived"] = entry[ARCHIVED_COLUMN].lower().strip() in [
                     "true",
                     "1",
                 ]
-                show_data["updated_at"] = entry["updated_at"]
+                show_data["updated_at"] = entry[UPDATED_AT_COLUMN]
                 if show_data["is_archived"] != old_value:
                     print(f"Updated archived status for show {show}.")
-            if entry.get("ep_watch_count"):
+            if entry.get(EPISODE_COUNT_COLUMN):
                 old_value = show_data["total_episodes_watched"]
                 show_data["total_episodes_watched"] = max(
-                    int(entry["ep_watch_count"]), show_data["total_episodes_watched"]
+                    int(entry[EPISODE_COUNT_COLUMN]),
+                    show_data["total_episodes_watched"],
                 )
-                show_data["updated_at"] = entry["updated_at"]
+                show_data["updated_at"] = entry[UPDATED_AT_COLUMN]
                 if show_data["total_episodes_watched"] != old_value:
                     print(f"Updated episode count for show {show}.")
 
         episode_pairs = [
             (
-                int(entry["s_no"]) if entry.get("s_no") else -1,
-                int(entry["ep_no"]) if entry.get("ep_no") else None,
+                int(entry[SEASON_COLUMN]) if entry.get(SEASON_COLUMN) else -1,
+                int(entry[EPISODE_COLUMN]) if entry.get(EPISODE_COLUMN) else None,
             ),
         ]
         alternate_pair = (
-            int(entry["season_number"]) if entry.get("season_number") else -1,
-            int(entry["episode_number"]) if entry.get("episode_number") else None,
+            int(entry[ALTERNATE_SEASON_COLUMN])
+            if entry.get(ALTERNATE_SEASON_COLUMN)
+            else -1,
+            int(entry[ALTERNATE_EPISODE_COLUMN])
+            if entry.get(ALTERNATE_EPISODE_COLUMN)
+            else None,
         )
         if alternate_pair != episode_pairs[0]:
             episode_pairs.append(alternate_pair)
@@ -108,7 +137,7 @@ def aggregate_show_data(aggregated: ShowIndex, file_path: str) -> ShowIndex:
                 watched_entry: WatchedEpisode = {
                     "season": season,
                     "episode": episode,
-                    "updated_at": entry["updated_at"],
+                    "updated_at": entry[UPDATED_AT_COLUMN],
                 }
                 if watched_entry not in show_data["episodes_watched"]:
                     show_data["episodes_watched"].append(watched_entry)
@@ -122,24 +151,27 @@ def aggregate_movie_data(aggregated: MovieIndex, file_path: str) -> MovieIndex:
     raw_watch_data = read_csv_data(file_path)
 
     for entry in raw_watch_data:
-        if not entry.get("movie_name"):
+        if not entry.get(MOVIE_NAME_COLUMN):
             continue
 
-        movie = entry["movie_name"].strip()
+        movie = entry[MOVIE_NAME_COLUMN].strip()
 
         if movie not in aggregated:
             aggregated[movie] = new_watch_data(movie, "movie")
 
         movie_data = aggregated[movie]
 
-        if entry.get("created_at") and (
+        if entry.get(CREATED_AT_COLUMN) and (
             not movie_data["created_at"]
-            or entry["created_at"] < movie_data["created_at"]
+            or entry[CREATED_AT_COLUMN] < movie_data["created_at"]
         ):
-            movie_data["created_at"] = entry["created_at"]
+            movie_data["created_at"] = entry[CREATED_AT_COLUMN]
 
-        if entry.get("updated_at") and entry["updated_at"] >= movie_data["updated_at"]:
-            movie_data["updated_at"] = entry["updated_at"]
+        if (
+            entry.get(UPDATED_AT_COLUMN)
+            and entry[UPDATED_AT_COLUMN] >= movie_data["updated_at"]
+        ):
+            movie_data["updated_at"] = entry[UPDATED_AT_COLUMN]
 
     return aggregated
 
@@ -156,7 +188,7 @@ def sort_episodes_asc(aggregated: ShowIndex) -> None:
 
 def dedupe_episode_list(shows: list[ShowWatchData]) -> None:
     """Remove duplicate episodes when a list exceeds its recorded total."""
-    print("Depuplicating episode lists")
+    print("Deduplicating episode lists")
 
     for show in shows:
         total_watched = show["total_episodes_watched"]
@@ -169,7 +201,7 @@ def dedupe_episode_list(shows: list[ShowWatchData]) -> None:
 
         if total_watched != len(show["episodes_watched"]):
             print(
-                f"Discrapency for show {show['name']}:",
+                f"Discrepancy for show {show['name']}:",
                 f"Total watched is {total_watched} but episode list contains {len(episode_list)}.",
             )
             for index, episode in enumerate(episode_list, start=1):
