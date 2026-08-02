@@ -537,7 +537,11 @@ def _has_alternative_title(
 
 
 def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
-    """Reduce TMDB candidate lists in place and save manual selections."""
+    """Reduce candidate lists in place and persist manual selection IDs.
+
+    The caller owns persistence of the filtered search data. This function
+    writes only the separate manual-selection cache when a choice is made.
+    """
     selection_cache_path = "data/tvtime/tmdb_selection_cache.json"
     if os.path.exists(path_from_project_root(selection_cache_path)):
         selection_cache = cast(TMDBSelectionCache, read_json(selection_cache_path))
@@ -648,5 +652,3 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         if type(selected_tmdb_id) is int:
             selection_cache[media_type][source_title] = selected_tmdb_id
         write_json(selection_cache, selection_cache_path)
-
-    write_json(tmdb_search_data, TMDB_SEARCH_CACHE_PATH)

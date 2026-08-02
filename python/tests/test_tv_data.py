@@ -263,6 +263,7 @@ def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
         (tmp_path / "tmdb_selection_cache.json").read_text(encoding="utf-8")
     )
     assert selection_cache["shows"]["Imported Title"] == 1
+    assert not (tmp_path / "tmdb_search_data.json").exists()
 
 
 def test_filter_tmdb_search_data_uses_movie_fields_for_review(monkeypatch, tmp_path):
