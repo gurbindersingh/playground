@@ -119,36 +119,22 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
                 if show_data["total_episodes_watched"] != previous_episode_count:
                     print(f"Updated episode count for show {show_name}.")
 
-        episode_pairs = [
-            (
-                int(csv_row[SHORT_SEASON_COLUMN])
-                if csv_row.get(SHORT_SEASON_COLUMN)
-                else -1,
-                int(csv_row[SHORT_EPISODE_COLUMN])
-                if csv_row.get(SHORT_EPISODE_COLUMN)
-                else None,
-            ),
-        ]
-        alternate_episode_pair = (
-            int(csv_row[SEASON_NUMBER_COLUMN])
-            if csv_row.get(SEASON_NUMBER_COLUMN)
-            else -1,
-            int(csv_row[EPISODE_NUMBER_COLUMN])
-            if csv_row.get(EPISODE_NUMBER_COLUMN)
-            else None,
-        )
-        if alternate_episode_pair != episode_pairs[0]:
-            episode_pairs.append(alternate_episode_pair)
+        for season_column, episode_column in (
+            (SHORT_SEASON_COLUMN, SHORT_EPISODE_COLUMN),
+            (SEASON_NUMBER_COLUMN, EPISODE_NUMBER_COLUMN),
+        ):
+            episode_number = csv_row.get(episode_column)
+            if not episode_number:
+                continue
 
-        for season_number, episode_number in episode_pairs:
-            if episode_number is not None:
-                watched_entry: WatchedEpisode = {
-                    "season": season_number,
-                    "episode": episode_number,
-                    "updated_at": csv_row[UPDATED_AT_COLUMN],
-                }
-                if watched_entry not in show_data["episodes_watched"]:
-                    show_data["episodes_watched"].append(watched_entry)
+            season_number = csv_row.get(season_column)
+            watched_entry: WatchedEpisode = {
+                "season": int(season_number) if season_number else -1,
+                "episode": int(episode_number),
+                "updated_at": csv_row[UPDATED_AT_COLUMN],
+            }
+            if watched_entry not in show_data["episodes_watched"]:
+                show_data["episodes_watched"].append(watched_entry)
 
     return show_index
 
