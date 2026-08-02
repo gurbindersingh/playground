@@ -177,14 +177,17 @@ def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
 def deduplicate_episodes(
     episodes_watched: list[WatchedEpisode],
 ) -> list[WatchedEpisode]:
-    """Return the first entry for each season and episode number."""
-    seen_episode_keys: set[tuple[int, int]] = set()
-    unique_episodes: list[WatchedEpisode] = []
+    """Return the newest entry per episode, ordered by season and episode."""
+    newest_episodes: dict[tuple[int, int], WatchedEpisode] = {}
     for episode in episodes_watched:
         episode_key = (episode["season"], episode["episode"])
         if episode_key == (0, 0):
             continue
-        if episode_key not in seen_episode_keys:
-            seen_episode_keys.add(episode_key)
-            unique_episodes.append(episode)
-    return unique_episodes
+        existing_episode = newest_episodes.get(episode_key)
+        if (
+            existing_episode is None
+            or episode["updated_at"] > existing_episode["updated_at"]
+        ):
+            newest_episodes[episode_key] = episode
+
+    return [newest_episodes[key] for key in sorted(newest_episodes)]

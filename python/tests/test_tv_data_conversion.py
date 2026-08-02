@@ -180,7 +180,7 @@ def test_deduplicate_show_episodes_removes_duplicate_and_zero_episode_entries():
     tv_data.deduplicate_show_episodes(shows)
 
     assert shows[0]["episodes_watched"] == [
-        {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"}
+        {"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"}
     ]
 
 
@@ -192,9 +192,14 @@ def test_deduplicate_show_episodes_removes_duplicate_and_zero_episode_entries():
                 {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"},
                 {"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
             ],
+            [{"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"}],
+        ),
+        (
             [
-                {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"}
+                {"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
+                {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"},
             ],
+            [{"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"}],
         ),
         (
             [{"season": 0, "episode": 0, "updated_at": "2024-01-01 10:00:00"}],
@@ -218,3 +223,19 @@ def test_deduplicate_show_episodes_always_cleans_episode_list(
     tv_data.deduplicate_show_episodes(shows)
 
     assert shows[0]["episodes_watched"] == expected_episodes
+
+
+def test_deduplicate_episodes_returns_ascending_season_and_episode_order():
+    episodes = [
+        {"season": 2, "episode": 1, "updated_at": "2024-01-03 10:00:00"},
+        {"season": 1, "episode": 2, "updated_at": "2024-01-02 10:00:00"},
+        {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"},
+    ]
+
+    deduplicated = tv_data.deduplicate_episodes(episodes)
+
+    assert [(episode["season"], episode["episode"]) for episode in deduplicated] == [
+        (1, 1),
+        (1, 2),
+        (2, 1),
+    ]
