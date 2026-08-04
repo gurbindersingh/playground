@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from tv_data import tmdb
@@ -364,6 +366,226 @@ def test_filter_tmdb_search_data_uses_only_valid_candidates_for_alternative_titl
 
     assert alternative_title_calls == [("shows", 1)]
     assert search_data["shows"]["Imported Show"] == [valid_candidate]
+
+
+def test_filter_tmdb_search_data_accepts_unique_show_and_movie_matches(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    show_candidate = {
+        "id": 1,
+        "name": "Imported Show",
+        "original_name": "Imported Show",
+    }
+    movie_candidate = {
+        "id": 2,
+        "title": "Imported Movie",
+        "original_title": "Imported Movie",
+    }
+    search_data = {
+        "shows": {"Imported Show": [show_candidate]},
+        "movies": {"Imported Movie": [movie_candidate]},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {
+        "shows": {"Imported Show": [show_candidate]},
+        "movies": {"Imported Movie": [movie_candidate]},
+    }
+
+
+def test_filter_tmdb_search_data_deduplicates_alternative_title_requests(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    alternative_title_calls = []
+
+    def fake_fetch_alternative_titles(media_type, tmdb_id):
+        alternative_title_calls.append((media_type, tmdb_id))
+        return ["Imported Show", "Localized Show"]
+
+    monkeypatch.setattr(
+        tmdb, "fetch_tmdb_alternative_titles", fake_fetch_alternative_titles
+    )
+    candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {
+        "shows": {
+            "Imported Show": [candidate],
+            "Localized Show": [candidate],
+        },
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert alternative_title_calls == [("shows", 1)]
+    assert search_data["shows"] == {
+        "Imported Show": [candidate],
+        "Localized Show": [candidate],
+    }
+
+
+def test_filter_tmdb_search_data_reports_alternative_title_failure(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    def fail_fetch_alternative_titles(*_):
+        raise tmdb.requests.RequestException("temporary failure")
+
+    monkeypatch.setattr(
+        tmdb, "fetch_tmdb_alternative_titles", fail_fetch_alternative_titles
+    )
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", lambda *_: None)
+    candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {
+        "shows": {"Imported Show": [candidate]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data["shows"]["Imported Show"] == [candidate]
+    assert "Could not fetch alternative titles" in capsys.readouterr().out
+
+
+def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    def fail_choose_tmdb_match(*_):
+        raise AssertionError("Empty review entries must not prompt.")
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", fail_choose_tmdb_match)
+    search_data = {
+        "shows": {"Malformed Show": ["malformed", None]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data["shows"]["Malformed Show"] == []
+    assert "No TMDB candidates for show Malformed Show." in capsys.readouterr().out
+
+
+def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    review_calls = []
+    cache_writes = []
+
+    def fake_choose_tmdb_match(*args):
+        review_calls.append((args[0], args[1]))
+        return args[2][0] if args[0] == "Show Review" else None
+
+    def fake_write_json(data, _):
+        cache_writes.append(json.loads(json.dumps(data)))
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
+    monkeypatch.setattr(tmdb, "write_json", fake_write_json)
+    show_candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    movie_candidate = {
+        "id": 2,
+        "title": "Unrelated Movie",
+        "original_title": "Unrelated Movie",
+    }
+    search_data = {
+        "shows": {"Show Review": [show_candidate]},
+        "movies": {"Movie Review": [movie_candidate]},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert review_calls == [("Show Review", "shows"), ("Movie Review", "movies")]
+    assert search_data == {
+        "shows": {"Show Review": [show_candidate]},
+        "movies": {"Movie Review": [movie_candidate]},
+    }
+    assert cache_writes == [{"shows": {"Show Review": 1}, "movies": {}}]
+
+
+def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fails(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    cache_writes = []
+
+    def fake_choose_tmdb_match(*args):
+        return args[2][0]
+
+    def fake_write_json(data, _):
+        if cache_writes:
+            raise OSError("disk full")
+        cache_writes.append(json.loads(json.dumps(data)))
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
+    monkeypatch.setattr(tmdb, "write_json", fake_write_json)
+    first_candidate = {
+        "id": 1,
+        "name": "Unrelated First Show",
+        "original_name": "Unrelated First Show",
+    }
+    second_candidate = {
+        "id": 2,
+        "name": "Unrelated Second Show",
+        "original_name": "Unrelated Second Show",
+    }
+    search_data = {
+        "shows": {
+            "First Show": [first_candidate],
+            "Second Show": [second_candidate],
+        },
+        "movies": {},
+    }
+
+    with pytest.raises(OSError, match="disk full"):
+        tmdb.filter_tmdb_search_data(search_data)
+
+    assert cache_writes == [{"shows": {"First Show": 1}, "movies": {}}]
+    assert search_data == {
+        "shows": {
+            "First Show": [first_candidate],
+            "Second Show": [second_candidate],
+        },
+        "movies": {},
+    }
 
 
 def test_fetch_details_requests_and_caches_one_detail_per_id(monkeypatch):
