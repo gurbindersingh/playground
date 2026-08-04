@@ -214,8 +214,8 @@ def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
 
         if unique_episodes != watched_episodes:
             print(f"Removing duplicate episodes for {show_record['name']}")
+            print("-")
         show_record["episodes_watched"] = unique_episodes
-        print("-")
 
 
 def deduplicate_episodes(

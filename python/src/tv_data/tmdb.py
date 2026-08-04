@@ -299,11 +299,13 @@ def normalize_tmdb_title(title: str) -> str:
     NFC normalization makes equivalent composed and decomposed characters
     compare equally. Case, spacing, punctuation, and accents are intentionally
     left unchanged, so matching remains exact in every other respect.
+
+    See https://unicodefyi.com/guide/unicode-normalization-guide/.
     """
     return unicodedata.normalize("NFC", title)
 
 
-def tmdb_title_matches(
+def matches_tmdb_title(
     candidate: Mapping[str, object],
     lookup_title: str,
     title_field: str,
@@ -327,7 +329,7 @@ def tmdb_title_matches(
     )
 
 
-def tmdb_date_matches(
+def matches_tmdb_date(
     candidate: Mapping[str, object], date_field: str, expected_year: str | None
 ) -> bool:
     """Return whether a candidate's media-specific date starts with a year.
@@ -597,21 +599,20 @@ def search_tmdb_for_missing(
     media_needing_search: AggregatedWatchData = {"shows": [], "movies": []}
 
     for media_type in ("shows", "movies"):
-        cached_results = tmdb_search_data.setdefault(media_type, {})
+        cached_search_results = tmdb_search_data.setdefault(media_type, {})
 
         for media_record in aggregated_watch_data[media_type]:
             # Empty results are retried because they may reflect a transient search issue.
-            if cached_results.get(media_record["name"]):
+            if cached_search_results.get(media_record["name"]):
                 continue
             if media_type == "shows":
-                media_needing_search["shows"].append(
-                    cast(ShowWatchData, media_record)
-                )
+                media_needing_search["shows"].append(cast(ShowWatchData, media_record))
             else:
                 media_needing_search["movies"].append(
                     cast(MovieWatchData, media_record)
                 )
 
+    # I hate these truthy values.
     if not media_needing_search["shows"] and not media_needing_search["movies"]:
         return
 
@@ -643,20 +644,18 @@ def filter_tmdb_candidates(
     remains ambiguous. The input list and candidate dictionaries are not
     mutated.
     """
-    valid_candidates = [
+    # TODO: I feel like this function can be decomposed into smaller functions
+    valid_search_candidates = [
         cast(TMDBSearchCandidate, candidate)
         for candidate in candidates
         if isinstance(candidate, dict)
     ]
+
     lookup_title, lookup_year = parse_title_and_year(source_title)
-    cached_match = next(
-        (candidate for candidate in valid_candidates if candidate.get("id") == cached_tmdb_id),
-        None,
-    )
     direct_title_matches = [
         candidate
-        for candidate in valid_candidates
-        if tmdb_title_matches(
+        for candidate in valid_search_candidates
+        if matches_tmdb_title(
             candidate, lookup_title, title_field, original_title_field
         )
     ]
@@ -666,8 +665,8 @@ def filter_tmdb_candidates(
         normalized_lookup_title = normalize_tmdb_title(lookup_title)
         title_matches = [
             candidate
-            for candidate in valid_candidates
-            if _has_alternative_title(
+            for candidate in valid_search_candidates
+            if _matches_alternative_title(
                 candidate, normalized_lookup_title, alternative_titles
             )
         ]
@@ -677,10 +676,20 @@ def filter_tmdb_candidates(
     else:
         match_type = "no exact title match"
 
+    # TODO: Can this be simplified? It's hard to read unless you know what
+    # next() does. And this seems overly complicated.
+    cached_match = next(
+        (
+            candidate
+            for candidate in valid_search_candidates
+            if candidate.get("id") == cached_tmdb_id
+        ),
+        None,
+    )
     # An ID match is evidence only when its current title and year also agree.
     if cached_match is not None:
         cached_title_matches = cached_match in direct_title_matches
-        cached_year_matches = not lookup_year or tmdb_date_matches(
+        cached_year_matches = not lookup_year or matches_tmdb_date(
             cached_match, date_field, lookup_year
         )
         if cached_title_matches and cached_year_matches:
@@ -690,13 +699,13 @@ def filter_tmdb_candidates(
         return review_candidates, "cached selection conflicts with title or year"
 
     if not title_matches:
-        return valid_candidates, match_type
+        return valid_search_candidates, match_type
 
     if lookup_year:
         year_matches = [
             candidate
             for candidate in title_matches
-            if tmdb_date_matches(candidate, date_field, lookup_year)
+            if matches_tmdb_date(candidate, date_field, lookup_year)
         ]
         if len(year_matches) == 1:
             return year_matches, f"{match_type} and year"
@@ -704,6 +713,7 @@ def filter_tmdb_candidates(
 
     if len(title_matches) == 1:
         return title_matches, match_type
+
     return title_matches, f"{match_type} is ambiguous"
 
 
@@ -755,7 +765,7 @@ def choose_tmdb_match(
         print(f"Enter a number from 1 to {len(candidates)}.")
 
 
-def _has_alternative_title(
+def _matches_alternative_title(
     candidate: TMDBSearchCandidate,
     normalized_lookup_title: str,
     alternative_titles: dict[int, list[str]],
@@ -793,10 +803,12 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     write errors propagate after any preceding in-memory mutations.
     """
     if os.path.exists(path_from_project_root(TMDB_SELECTION_CACHE_PATH)):
+        print("Selection cache found")
         selection_cache = validate_tmdb_selection_cache(
             read_tmdb_cache(TMDB_SELECTION_CACHE_PATH), TMDB_SELECTION_CACHE_PATH
         )
     else:
+        print("No selection cache found")
         selection_cache: TMDBSelectionCache = {"shows": {}, "movies": {}}
 
     media_type_configs = (
@@ -808,6 +820,18 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         tuple[list[TMDBSearchCandidate], str, tuple[str, str, str]],
     ] = {}
     alternative_titles_cache: dict[tuple[str, int], list[str]] = {}
+    total_entries = sum(
+        len(tmdb_search_data[media_type]) for media_type, _, _, _ in media_type_configs
+    )
+    automatic_match_reasons = {
+        "cached manual selection",
+        "exact title",
+        "exact title and year",
+        "alternative title",
+        "alternative title and year",
+    }
+    print(f"Filtering {total_entries} TMDB search entries.")
+    processed_entries = 0
 
     for (
         media_type,
@@ -816,6 +840,12 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         date_field,
     ) in media_type_configs:
         for source_title, search_candidates in tmdb_search_data[media_type].items():
+            processed_entries += 1
+            progress_prefix = (
+                f"[{processed_entries}/{total_entries}] "
+                f"{media_type[:-1].title()} {source_title}"
+            )
+            print(f"{progress_prefix}: filtering {len(search_candidates)} candidates.")
             valid_search_candidates = [
                 cast(TMDBSearchCandidate, candidate)
                 for candidate in search_candidates
@@ -837,7 +867,20 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                 date_field,
                 selection_cache[media_type].get(source_title),
             )
+            print(
+                f"{progress_prefix}: initial filtering left "
+                f"{len(filtered_results)} candidates ({reason})."
+            )
             if reason == "no exact title match" and valid_search_candidates:
+                candidate_ids = [
+                    candidate.get("id")
+                    for candidate in valid_search_candidates
+                    if type(candidate.get("id")) is int
+                ]
+                print(
+                    f"{progress_prefix}: checking alternative titles for "
+                    f"{len(candidate_ids)} candidates."
+                )
                 alternative_titles: dict[int, list[str]] = {}
                 for candidate in valid_search_candidates:
                     tmdb_id = candidate.get("id")
@@ -845,6 +888,10 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                         continue
                     cache_key = (media_type, tmdb_id)
                     if cache_key not in alternative_titles_cache:
+                        print(
+                            f"{progress_prefix}: fetching alternative titles for "
+                            f"TMDB ID {tmdb_id}."
+                        )
                         try:
                             alternative_titles_cache[cache_key] = (
                                 fetch_tmdb_alternative_titles(media_type, tmdb_id)
@@ -870,30 +917,38 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                     selection_cache[media_type].get(source_title),
                     alternative_titles,
                 )
+                print(
+                    f"{progress_prefix}: alternative-title filtering left "
+                    f"{len(filtered_results)} candidates ({reason})."
+                )
 
             tmdb_search_data[media_type][source_title] = filtered_results
-            if reason not in {
-                "cached manual selection",
-                "exact title",
-                "exact title and year",
-                "alternative title",
-                "alternative title and year",
-            }:
+            if reason not in automatic_match_reasons:
                 review_entries[(media_type, source_title)] = (
                     filtered_results,
                     reason,
                     (title_field, original_title_field, date_field),
                 )
+                print(f"{progress_prefix}: queued for manual review.")
+            else:
+                print(f"{progress_prefix}: accepted automatically.")
 
     print(f"Entries requiring review: {len(review_entries)}")
 
-    for (media_type, source_title), (
-        search_candidates,
-        reason,
-        review_fields,
-    ) in review_entries.items():
+    selected_during_review = 0
+    skipped_during_review = 0
+    no_candidates_for_review = 0
+    for review_index, (
+        (media_type, source_title),
+        (search_candidates, reason, review_fields),
+    ) in enumerate(review_entries.items(), start=1):
+        print(
+            f"Review [{review_index}/{len(review_entries)}]: "
+            f"{media_type[:-1].title()} {source_title}."
+        )
         if not search_candidates:
             print(f"No TMDB candidates for {media_type[:-1]} {source_title}.")
+            no_candidates_for_review += 1
             continue
 
         title_field, original_title_field, date_field = review_fields
@@ -907,10 +962,26 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
             reason,
         )
         if selected_match is None:
+            print(f"Review skipped for {media_type[:-1]} {source_title}.")
+            skipped_during_review += 1
             continue
 
         tmdb_search_data[media_type][source_title] = [selected_match]
         selected_tmdb_id = selected_match.get("id")
         if type(selected_tmdb_id) is int:
             selection_cache[media_type][source_title] = selected_tmdb_id
+        selected_during_review += 1
+        print(
+            f"Review selected TMDB ID {selected_tmdb_id} for "
+            f"{media_type[:-1]} {source_title}."
+        )
         write_json(selection_cache, TMDB_SELECTION_CACHE_PATH)
+
+    print(
+        "TMDB filtering complete: "
+        f"{processed_entries} entries processed, "
+        f"{len(review_entries)} required review, "
+        f"{selected_during_review} selected, "
+        f"{skipped_during_review} skipped, "
+        f"{no_candidates_for_review} had no candidates."
+    )

@@ -108,10 +108,12 @@ def main() -> None:
     print("=== Search TMDB ===")
     tmdb_search_data: TMDBSearchData
     if os.path.exists(path_from_project_root(TMDB_SEARCH_CACHE_PATH)):
+        print("Loading cached data")
         tmdb_search_data = validate_tmdb_search_cache(
             read_tmdb_cache(TMDB_SEARCH_CACHE_PATH), TMDB_SEARCH_CACHE_PATH
         )
     else:
+        print("No cache found")
         tmdb_search_data = {"shows": {}, "movies": {}}
     search_tmdb_for_missing(aggregated_watch_data, tmdb_search_data)
     write_json(tmdb_search_data, TMDB_SEARCH_CACHE_PATH)
