@@ -13,11 +13,11 @@ matches, and regenerates `data/tvtime/watch_data_final.json` when successful.
 Run the module from the Python project root with `src` on the import path:
 
 ```bash
-TMDB_TOKEN="your-tmdb-bearer-token" PYTHONPATH=src python -m tv_data.main
+TMDB_TOKEN="your-tmdb-bearer-token" PYTHONPATH=src uv run -m tv_data.main
 ```
 
-The project requires Python 3.13 or newer and its declared dependencies,
-including `requests`, must already be installed.
+The project requires Python 3.13 or newer. `uv run` creates or updates the
+project environment from `pyproject.toml` and `uv.lock`, including `requests`.
 
 `TMDB_TOKEN` is required whenever uncached search or detail requests are needed.
 Alternative-title matching simply has no additional evidence when the token is
@@ -31,7 +31,7 @@ The command needs:
 - An interactive terminal when a nonempty candidate list requires review.
 
 The package has no registered project script or `tv_data.__main__` module. The
-supported module invocation is `python -m tv_data.main`.
+supported module invocation is `uv run -m tv_data.main`.
 
 ## Input Files
 
