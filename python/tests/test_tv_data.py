@@ -225,6 +225,86 @@ def test_fetch_tmdb_alternative_titles_uses_media_specific_response(monkeypatch)
     ]
 
 
+def test_filter_tmdb_search_data_persists_fetched_alternative_titles(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "write_json",
+        lambda data, file_path: (tmp_path / Path(file_path).name).write_text(
+            json.dumps(data), encoding="utf-8"
+        ),
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "fetch_tmdb_alternative_titles",
+        lambda *_: ["Imported Title"],
+    )
+    candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    alternative_cache = json.loads(
+        (tmp_path / "tmdb_alternative_titles.json").read_text(encoding="utf-8")
+    )
+    assert alternative_cache == {
+        "shows": {"1": ["Imported Title"]},
+        "movies": {},
+    }
+
+
+def test_filter_tmdb_search_data_reuses_cached_alternative_titles(
+    monkeypatch, tmp_path
+):
+    cache_path = tmp_path / "tmdb_alternative_titles.json"
+    cache_path.write_text(
+        json.dumps({"shows": {"1": ["Imported Title"]}, "movies": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda file_path: json.loads(
+            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
+        ),
+    )
+    alternative_title_calls = []
+
+    def fail_fetch_alternative_titles(*args):
+        alternative_title_calls.append(args)
+        raise AssertionError("Cached alternative titles should not be fetched")
+
+    monkeypatch.setattr(
+        tmdb, "fetch_tmdb_alternative_titles", fail_fetch_alternative_titles
+    )
+    candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert alternative_title_calls == []
+    assert search_data["shows"]["Imported Title"] == [candidate]
+
+
 def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
     monkeypatch, tmp_path
 ):
@@ -512,6 +592,7 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
 
     monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
     monkeypatch.setattr(tmdb, "write_json", fake_write_json)
+    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
     show_candidate = {
         "id": 1,
         "name": "Unrelated Show",
@@ -534,7 +615,10 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
         "shows": {"Show Review": [show_candidate]},
         "movies": {"Movie Review": [movie_candidate]},
     }
-    assert cache_writes == [{"shows": {"Show Review": 1}, "movies": {}}]
+    assert cache_writes == [
+        {"shows": {"Show Review": 1}, "movies": {}},
+        {"shows": {"1": []}, "movies": {"2": []}},
+    ]
 
 
 def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fails(
@@ -557,6 +641,7 @@ def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fai
 
     monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
     monkeypatch.setattr(tmdb, "write_json", fake_write_json)
+    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
     first_candidate = {
         "id": 1,
         "name": "Unrelated First Show",

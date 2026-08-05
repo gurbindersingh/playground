@@ -63,6 +63,34 @@ def test_validate_tmdb_selection_cache_rejects_non_integer_ids(invalid_id):
         tmdb.validate_tmdb_selection_cache(data, "selection.json")
 
 
+def test_validate_tmdb_alternative_titles_cache_accepts_string_lists():
+    data = {
+        "shows": {"1": ["Localized Show"]},
+        "movies": {"2": []},
+    }
+
+    validated = tmdb.validate_tmdb_alternative_titles_cache(data, "alternative.json")
+
+    assert validated is data
+
+
+@pytest.mark.parametrize(
+    "invalid_entry",
+    [
+        {"not-an-id": ["Title"]},
+        {"1": "Title"},
+        {"1": ["Title", 2]},
+    ],
+)
+def test_validate_tmdb_alternative_titles_cache_rejects_invalid_entries(
+    invalid_entry,
+):
+    data = {"shows": invalid_entry, "movies": {}}
+
+    with pytest.raises(TypeError, match=r"alternative\.json.*list of strings"):
+        tmdb.validate_tmdb_alternative_titles_cache(data, "alternative.json")
+
+
 def test_validate_tmdb_details_cache_accepts_matching_integer_ids():
     data = {
         "shows": {"1": {"id": 1, "name": "Example Show"}},

@@ -18,6 +18,7 @@ from .models import (
     JSONValue,
     MovieWatchData,
     ShowWatchData,
+    TMDBAlternativeTitlesCache,
     TMDBDetailsData,
     TMDBMovieDetail,
     TMDBSearchCandidate,
@@ -32,6 +33,7 @@ TMDB_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data.json"
 TMDB_FILTERED_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data_filtered.json"
 TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
 TMDB_SELECTION_CACHE_PATH = "data/tvtime/tmdb_selection_cache.json"
+TMDB_ALTERNATIVE_TITLES_CACHE_PATH = "data/tvtime/tmdb_alternative_titles.json"
 TMDB_REQUEST_TIMEOUT = 30
 TMDB_REQUEST_INTERVAL = 1 / 3
 
@@ -174,6 +176,39 @@ def validate_tmdb_selection_cache(data: object, cache_path: str) -> TMDBSelectio
                 )
 
     return cast(TMDBSelectionCache, cache)
+
+
+def validate_tmdb_alternative_titles_cache(
+    data: object, cache_path: str
+) -> TMDBAlternativeTitlesCache:
+    """Validate cached alternative titles keyed by string TMDB IDs.
+
+    Every media section must map a canonical string representation of an integer
+    TMDB ID to a list containing only strings. The original dictionary is
+    returned or ``TypeError`` identifies the invalid cache structure.
+    """
+    cache = _require_tmdb_cache_sections(data, cache_path)
+    for media_type in ("shows", "movies"):
+        section = cast(dict[object, object], cache[media_type])
+        for cache_key, titles in section.items():
+            valid_cache_key = False
+            if isinstance(cache_key, str):
+                try:
+                    valid_cache_key = cache_key == str(int(cache_key))
+                except ValueError:
+                    pass
+            if (
+                not valid_cache_key
+                or not isinstance(titles, list)
+                or any(not isinstance(title, str) for title in titles)
+            ):
+                raise TypeError(
+                    f"Invalid TMDB alternative titles cache at {cache_path}: "
+                    f"expected every '{media_type}' entry to map a string TMDB ID "
+                    "to a list of strings."
+                )
+
+    return cast(TMDBAlternativeTitlesCache, cache)
 
 
 def validate_tmdb_details_cache(data: object, cache_path: str) -> TMDBDetailsData:
@@ -816,11 +851,30 @@ def _load_tmdb_selection_cache() -> TMDBSelectionCache:
     return {"shows": {}, "movies": {}}
 
 
+def _load_tmdb_alternative_titles_cache() -> TMDBAlternativeTitlesCache:
+    """Load cached alternative titles, or return an empty cache.
+
+    An existing cache is decoded and validated with its project-relative path.
+    Missing caches are created in memory only when the filtering pass discovers
+    alternative titles to persist.
+    """
+    if os.path.exists(path_from_project_root(TMDB_ALTERNATIVE_TITLES_CACHE_PATH)):
+        print("Alternative-title cache found")
+        return validate_tmdb_alternative_titles_cache(
+            read_tmdb_cache(TMDB_ALTERNATIVE_TITLES_CACHE_PATH),
+            TMDB_ALTERNATIVE_TITLES_CACHE_PATH,
+        )
+
+    print("No alternative-title cache found")
+    return {"shows": {}, "movies": {}}
+
+
 def _fetch_alternative_titles_for_candidates(
     media_type: str,
     source_title: str,
     candidates: list[TMDBSearchCandidate],
     alternative_titles_cache: dict[tuple[str, int], list[str]],
+    failed_alternative_titles: set[tuple[str, int]],
     progress_prefix: str,
 ) -> dict[int, list[str]]:
     """Fetch alternative titles for valid candidates, reusing run-local results.
@@ -846,6 +900,9 @@ def _fetch_alternative_titles_for_candidates(
             continue
         cache_key = (media_type, tmdb_id)
         if cache_key not in alternative_titles_cache:
+            if cache_key in failed_alternative_titles:
+                alternative_titles[tmdb_id] = []
+                continue
             print(
                 f"{progress_prefix}: fetching alternative titles for "
                 f"TMDB ID {tmdb_id}."
@@ -864,6 +921,7 @@ def _fetch_alternative_titles_for_candidates(
                     f"{media_type[:-1]} {source_title} ({tmdb_id}): {error}"
                 )
                 alternative_titles_cache[cache_key] = []
+                failed_alternative_titles.add(cache_key)
         alternative_titles[tmdb_id] = alternative_titles_cache[cache_key]
 
     return alternative_titles
@@ -878,6 +936,7 @@ def _filter_tmdb_search_entry(
     date_field: str,
     cached_tmdb_id: int | None,
     alternative_titles_cache: dict[tuple[str, int], list[str]],
+    failed_alternative_titles: set[tuple[str, int]],
     progress_prefix: str,
 ) -> tuple[list[TMDBSearchCandidate], str]:
     """Filter one source title and perform its alternative-title fallback.
@@ -919,6 +978,7 @@ def _filter_tmdb_search_entry(
             source_title,
             valid_search_candidates,
             alternative_titles_cache,
+            failed_alternative_titles,
             progress_prefix,
         )
         filtered_results, reason = filter_tmdb_candidates(
@@ -1019,11 +1079,14 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     ``tmdb_search_data`` is mutated so each title contains its filtered or
     selected candidates. New manual IDs are written atomically to the selection
     cache. The caller owns persistence of the filtered search data itself.
-    Alternative-title request failures are reported and treated as no evidence.
-    Cache-validation, interactive input, serialization, and selection-cache
-    write errors propagate after any preceding in-memory mutations.
+    Alternative titles are loaded from their ID-keyed cache and newly fetched
+    successful responses are written after review. Alternative-title request
+    failures are reported and treated as no evidence. Cache-validation,
+    interactive input, serialization, and cache-write errors propagate after any
+    preceding in-memory mutations.
     """
     selection_cache = _load_tmdb_selection_cache()
+    persisted_alternative_titles = _load_tmdb_alternative_titles_cache()
 
     media_type_configs = (
         ("shows", "name", "original_name", "first_air_date"),
@@ -1031,6 +1094,10 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     )
     review_entries: TMDBReviewEntries = {}
     alternative_titles_cache: dict[tuple[str, int], list[str]] = {}
+    for media_type in ("shows", "movies"):
+        for cache_key, titles in persisted_alternative_titles[media_type].items():
+            alternative_titles_cache[(media_type, int(cache_key))] = titles
+    failed_alternative_titles: set[tuple[str, int]] = set()
     total_entries = sum(
         len(tmdb_search_data[media_type]) for media_type, _, _, _ in media_type_configs
     )
@@ -1059,6 +1126,7 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                 date_field,
                 selection_cache[media_type].get(source_title),
                 alternative_titles_cache,
+                failed_alternative_titles,
                 progress_prefix,
             )
 
@@ -1079,3 +1147,17 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         review_entries,
         processed_entries,
     )
+
+    alternative_titles_written = False
+    for (media_type, tmdb_id), titles in alternative_titles_cache.items():
+        cache_key = str(tmdb_id)
+        if (media_type, tmdb_id) in failed_alternative_titles:
+            continue
+        if persisted_alternative_titles[media_type].get(cache_key) != titles:
+            persisted_alternative_titles[media_type][cache_key] = titles
+            alternative_titles_written = True
+    if alternative_titles_written:
+        write_json(
+            persisted_alternative_titles,
+            TMDB_ALTERNATIVE_TITLES_CACHE_PATH,
+        )

@@ -158,6 +158,11 @@ class TMDBSelectionCache(TypedDict):
     movies: Required[dict[str, int]]
 
 
+class TMDBAlternativeTitlesCache(TypedDict):
+    shows: Required[dict[str, list[str]]]
+    movies: Required[dict[str, list[str]]]
+
+
 class TMDBShowDetail(TypedDict):
     first_air_date: NotRequired[str | None]
     last_air_date: NotRequired[str | None]
