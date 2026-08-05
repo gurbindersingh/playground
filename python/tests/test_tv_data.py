@@ -200,6 +200,44 @@ def test_filter_tmdb_candidates_reviews_conflicting_cached_selection():
     assert reason == "cached selection conflicts with title or year"
 
 
+def test_choose_tmdb_match_prints_compact_review_options(monkeypatch, capsys):
+    monkeypatch.setattr("builtins.input", lambda _: "skip")
+
+    selected = tmdb.choose_tmdb_match(
+        "Suits",
+        "shows",
+        [
+            {
+                "id": 37680,
+                "name": "Suits",
+                "original_name": "Suits",
+                "first_air_date": "2011-06-23",
+                "overview": "American legal drama.",
+            },
+            {
+                "id": 83334,
+                "name": "Suits",
+                "original_name": "SUITS/スーツ",
+                "first_air_date": "2018-10-08",
+                "overview": "Japanese legal drama.",
+            },
+        ],
+        "name",
+        "original_name",
+        "first_air_date",
+        "exact title is ambiguous",
+    )
+
+    assert selected is None
+    assert capsys.readouterr().out == (
+        "Reason: exact title is ambiguous\n"
+        "1. Suits | Suits | 2011-06-23 | 37680\n"
+        "   Description: American legal drama.\n"
+        "2. Suits | SUITS/スーツ | 2018-10-08 | 83334\n"
+        "   Description: Japanese legal drama.\n"
+    )
+
+
 def test_fetch_tmdb_alternative_titles_uses_media_specific_response(monkeypatch):
     calls = []
 
@@ -261,6 +299,43 @@ def test_filter_tmdb_search_data_persists_fetched_alternative_titles(
         "shows": {"1": ["Imported Title"]},
         "movies": {},
     }
+
+
+def test_filter_tmdb_search_data_persists_titles_before_review_interruption(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: str(tmp_path / Path(file_path).name),
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "write_json",
+        lambda data, file_path: (tmp_path / Path(file_path).name).write_text(
+            json.dumps(data), encoding="utf-8"
+        ),
+    )
+    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
+
+    def interrupt_review(*_):
+        raise RuntimeError("review interrupted")
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", interrupt_review)
+    candidate = {
+        "id": 1,
+        "name": "Unrelated Show",
+        "original_name": "Unrelated Show",
+    }
+    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
+
+    with pytest.raises(RuntimeError, match="review interrupted"):
+        tmdb.filter_tmdb_search_data(search_data)
+
+    alternative_cache = json.loads(
+        (tmp_path / "tmdb_alternative_titles.json").read_text(encoding="utf-8")
+    )
+    assert alternative_cache == {"shows": {"1": []}, "movies": {}}
 
 
 def test_filter_tmdb_search_data_reuses_cached_alternative_titles(
@@ -423,6 +498,7 @@ def test_filter_tmdb_search_data_uses_only_valid_candidates_for_alternative_titl
         "path_from_project_root",
         lambda file_path: str(tmp_path / Path(file_path).name),
     )
+    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
     alternative_title_calls = []
 
     def fake_fetch_alternative_titles(media_type, tmdb_id):
@@ -487,6 +563,7 @@ def test_filter_tmdb_search_data_deduplicates_alternative_title_requests(
         "path_from_project_root",
         lambda file_path: str(tmp_path / Path(file_path).name),
     )
+    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
     alternative_title_calls = []
 
     def fake_fetch_alternative_titles(media_type, tmdb_id):
@@ -573,7 +650,7 @@ def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
 
 
 def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, capsys
 ):
     monkeypatch.setattr(
         tmdb,
@@ -616,9 +693,12 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
         "movies": {"Movie Review": [movie_candidate]},
     }
     assert cache_writes == [
-        {"shows": {"Show Review": 1}, "movies": {}},
         {"shows": {"1": []}, "movies": {"2": []}},
+        {"shows": {"Show Review": 1}, "movies": {}},
     ]
+    output = capsys.readouterr().out
+    assert "\nReview [1/2]: Show Show Review\n" in output
+    assert "\n\n\n" not in output
 
 
 def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fails(
@@ -634,7 +714,9 @@ def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fai
     def fake_choose_tmdb_match(*args):
         return args[2][0]
 
-    def fake_write_json(data, _):
+    def fake_write_json(data, file_path):
+        if file_path != tmdb.TMDB_SELECTION_CACHE_PATH:
+            return
         if cache_writes:
             raise OSError("disk full")
         cache_writes.append(json.loads(json.dumps(data)))
