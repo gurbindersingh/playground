@@ -1,3 +1,4 @@
+import copy
 import json
 import sys
 from pathlib import Path
@@ -118,7 +119,6 @@ def test_filter_tmdb_candidates_matches_original_title():
         "name",
         "original_name",
         "first_air_date",
-        None,
     )
 
     assert [candidate["id"] for candidate in filtered] == [533514]
@@ -132,7 +132,6 @@ def test_filter_tmdb_candidates_does_not_trust_unverified_single_result():
         "name",
         "original_name",
         "first_air_date",
-        None,
     )
 
     assert filtered == [
@@ -148,8 +147,6 @@ def test_filter_tmdb_candidates_ignores_malformed_candidate():
         "name",
         "original_name",
         "first_air_date",
-        None,
-        {},
     )
 
     assert filtered == []
@@ -163,41 +160,10 @@ def test_filter_tmdb_candidates_requires_review_for_conflicting_year():
         "name",
         "original_name",
         "first_air_date",
-        None,
     )
 
     assert [candidate["id"] for candidate in filtered] == [1]
     assert reason == "exact title has no unique year match"
-
-
-def test_filter_tmdb_candidates_uses_alternative_title():
-    filtered, reason = tmdb.filter_tmdb_candidates(
-        [{"id": 1, "name": "English Title", "original_name": "Original Title"}],
-        "Imported Title",
-        "name",
-        "original_name",
-        "first_air_date",
-        None,
-        {1: ["Imported Title"]},
-    )
-
-    assert [candidate["id"] for candidate in filtered] == [1]
-    assert reason == "alternative title"
-
-
-def test_filter_tmdb_candidates_reviews_conflicting_cached_selection():
-    filtered, reason = tmdb.filter_tmdb_candidates(
-        [{"id": 1, "name": "Title", "first_air_date": "2000-01-01"}],
-        "Imported Title",
-        "name",
-        "original_name",
-        "first_air_date",
-        1,
-        {1: ["Imported Title"]},
-    )
-
-    assert [candidate["id"] for candidate in filtered] == [1]
-    assert reason == "cached selection conflicts with title or year"
 
 
 def test_choose_tmdb_match_prints_compact_review_options(monkeypatch, capsys):
@@ -238,148 +204,6 @@ def test_choose_tmdb_match_prints_compact_review_options(monkeypatch, capsys):
     )
 
 
-def test_fetch_tmdb_alternative_titles_uses_media_specific_response(monkeypatch):
-    calls = []
-
-    def fake_get(url, **kwargs):
-        calls.append((url, kwargs))
-        return FakeResponse({"id": 1, "results": [{"title": "Imported Title"}]})
-
-    monkeypatch.setenv("TMDB_TOKEN", "token")
-    monkeypatch.setattr(tmdb.requests, "get", fake_get)
-    monkeypatch.setattr(tmdb.time, "sleep", lambda _: None)
-
-    titles = tmdb.fetch_tmdb_alternative_titles("shows", 1)
-
-    assert titles == ["Imported Title"]
-    assert calls == [
-        (
-            "https://api.themoviedb.org/3/tv/1/alternative_titles",
-            {
-                "headers": {"Authorization": "Bearer token"},
-                "timeout": 30,
-            },
-        )
-    ]
-
-
-def test_filter_tmdb_search_data_persists_fetched_alternative_titles(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    monkeypatch.setattr(
-        tmdb,
-        "write_json",
-        lambda data, file_path: (tmp_path / Path(file_path).name).write_text(
-            json.dumps(data), encoding="utf-8"
-        ),
-    )
-    monkeypatch.setattr(
-        tmdb,
-        "fetch_tmdb_alternative_titles",
-        lambda *_: ["Imported Title"],
-    )
-    candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
-
-    tmdb.filter_tmdb_search_data(search_data)
-
-    alternative_cache = json.loads(
-        (tmp_path / "tmdb_alternative_titles.json").read_text(encoding="utf-8")
-    )
-    assert alternative_cache == {
-        "shows": {"1": ["Imported Title"]},
-        "movies": {},
-    }
-
-
-def test_filter_tmdb_search_data_persists_titles_before_review_interruption(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    monkeypatch.setattr(
-        tmdb,
-        "write_json",
-        lambda data, file_path: (tmp_path / Path(file_path).name).write_text(
-            json.dumps(data), encoding="utf-8"
-        ),
-    )
-    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
-
-    def interrupt_review(*_):
-        raise RuntimeError("review interrupted")
-
-    monkeypatch.setattr(tmdb, "choose_tmdb_match", interrupt_review)
-    candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
-
-    with pytest.raises(RuntimeError, match="review interrupted"):
-        tmdb.filter_tmdb_search_data(search_data)
-
-    alternative_cache = json.loads(
-        (tmp_path / "tmdb_alternative_titles.json").read_text(encoding="utf-8")
-    )
-    assert alternative_cache == {"shows": {"1": []}, "movies": {}}
-
-
-def test_filter_tmdb_search_data_reuses_cached_alternative_titles(
-    monkeypatch, tmp_path
-):
-    cache_path = tmp_path / "tmdb_alternative_titles.json"
-    cache_path.write_text(
-        json.dumps({"shows": {"1": ["Imported Title"]}, "movies": {}}),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    monkeypatch.setattr(
-        tmdb,
-        "read_tmdb_cache",
-        lambda file_path: json.loads(
-            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
-        ),
-    )
-    alternative_title_calls = []
-
-    def fail_fetch_alternative_titles(*args):
-        alternative_title_calls.append(args)
-        raise AssertionError("Cached alternative titles should not be fetched")
-
-    monkeypatch.setattr(
-        tmdb, "fetch_tmdb_alternative_titles", fail_fetch_alternative_titles
-    )
-    candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {"shows": {"Imported Title": [candidate]}, "movies": {}}
-
-    tmdb.filter_tmdb_search_data(search_data)
-
-    assert alternative_title_calls == []
-    assert search_data["shows"]["Imported Title"] == [candidate]
-
-
 def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
     monkeypatch, tmp_path
 ):
@@ -395,7 +219,6 @@ def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
             json.dumps(data), encoding="utf-8"
         ),
     )
-    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
     monkeypatch.setattr("builtins.input", lambda _: "1")
 
     search_data = {
@@ -421,6 +244,357 @@ def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
     )
     assert selection_cache["shows"]["Imported Title"] == 1
     assert not (tmp_path / "tmdb_search_data.json").exists()
+
+
+def test_filter_tmdb_search_data_uses_cached_id_absent_from_search_results(
+    monkeypatch, tmp_path
+):
+    selection_cache_path = tmp_path / "tmdb_selection_cache.json"
+    selection_cache_path.write_text(
+        json.dumps({"shows": {"Imported Show": 42}, "movies": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda file_path: json.loads(
+            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
+        ),
+    )
+
+    def fail_input(_):
+        raise AssertionError("Cached IDs must not prompt")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    search_data = {
+        "shows": {
+            "Imported Show": [
+                {"id": 7, "name": "Unrelated Show", "original_name": "Other"}
+            ]
+        },
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {"shows": {"Imported Show": [{"id": 42}]}, "movies": {}}
+
+
+def test_filter_tmdb_search_data_uses_cached_id_despite_title_and_year_conflict(
+    monkeypatch, tmp_path
+):
+    selection_cache_path = tmp_path / "tmdb_selection_cache.json"
+    selection_cache_path.write_text(
+        json.dumps({"shows": {"Imported Show (2024)": 42}, "movies": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda file_path: json.loads(
+            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
+        ),
+    )
+
+    def fail_input(_):
+        raise AssertionError("Cached IDs must not prompt")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    search_data = {
+        "shows": {
+            "Imported Show (2024)": [
+                {
+                    "id": 42,
+                    "name": "Renamed Show",
+                    "original_name": "Renamed Show",
+                    "first_air_date": "2000-01-01",
+                }
+            ]
+        },
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {
+        "shows": {"Imported Show (2024)": [{"id": 42}]},
+        "movies": {},
+    }
+
+
+def test_filter_tmdb_search_data_reports_cached_null_without_prompt(
+    monkeypatch, tmp_path, capsys
+):
+    selection_cache_path = tmp_path / "tmdb_selection_cache.json"
+    selection_cache_path.write_text(
+        json.dumps({"shows": {"Imported Show": None}, "movies": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda file_path: json.loads(
+            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
+        ),
+    )
+
+    def fail_input(_):
+        raise AssertionError("Cached null values must not prompt")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    search_data = {"shows": {"Imported Show": [{"id": 7}]}, "movies": {}}
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {"shows": {"Imported Show": []}, "movies": {}}
+    assert "Show Imported Show: unresolved" in capsys.readouterr().out
+
+
+def test_filter_tmdb_search_data_persists_null_for_no_usable_candidates(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    cache_writes = []
+    monkeypatch.setattr(
+        tmdb,
+        "write_json",
+        lambda data, file_path: cache_writes.append((copy.deepcopy(data), file_path)),
+    )
+    search_data = {
+        "shows": {"Unknown Show": [{"id": 0}, {"id": True}, "malformed"]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {"shows": {"Unknown Show": []}, "movies": {}}
+    assert cache_writes == [
+        ({"shows": {"Unknown Show": None}, "movies": {}}, tmdb.TMDB_SELECTION_CACHE_PATH)
+    ]
+    assert "Show Unknown Show: unresolved" in capsys.readouterr().out
+
+
+def test_filter_tmdb_search_data_clears_skipped_review_candidates(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    cache_writes = []
+    monkeypatch.setattr(
+        tmdb,
+        "write_json",
+        lambda data, file_path: cache_writes.append((copy.deepcopy(data), file_path)),
+    )
+    monkeypatch.setattr("builtins.input", lambda _: "skip")
+    search_data = {
+        "shows": {
+            "Imported Show": [
+                {"id": 1, "name": "Unrelated One", "original_name": "One"},
+                {"id": 2, "name": "Unrelated Two", "original_name": "Two"},
+            ]
+        },
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {"shows": {"Imported Show": []}, "movies": {}}
+    assert cache_writes == []
+
+    prompted_again = []
+    monkeypatch.setattr("builtins.input", lambda _: prompted_again.append(True) or "skip")
+    tmdb.filter_tmdb_search_data(
+        {
+            "shows": {
+                "Imported Show": [
+                    {"id": 1, "name": "Unrelated One", "original_name": "One"},
+                    {"id": 2, "name": "Unrelated Two", "original_name": "Two"},
+                ]
+            },
+            "movies": {},
+        }
+    )
+
+    assert prompted_again == [True]
+
+
+def test_filter_tmdb_search_data_preserves_unrelated_cache_entries_when_selected(
+    monkeypatch, tmp_path
+):
+    selection_cache_path = tmp_path / "tmdb_selection_cache.json"
+    selection_cache_path.write_text(
+        json.dumps({"shows": {"Existing Show": 1}, "movies": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    monkeypatch.setattr(
+        tmdb,
+        "read_tmdb_cache",
+        lambda file_path: json.loads(
+            (tmp_path / Path(file_path).name).read_text(encoding="utf-8")
+        ),
+    )
+    cache_writes = []
+    monkeypatch.setattr(
+        tmdb,
+        "write_json",
+        lambda data, file_path: cache_writes.append((copy.deepcopy(data), file_path)),
+    )
+    monkeypatch.setattr("builtins.input", lambda _: "1")
+    selected_candidate = {
+        "id": 2,
+        "name": "Unrelated Show",
+        "original_name": "Other",
+    }
+    search_data = {"shows": {"New Show": [selected_candidate]}, "movies": {}}
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert cache_writes == [
+        (
+            {"shows": {"Existing Show": 1, "New Show": 2}, "movies": {}},
+            tmdb.TMDB_SELECTION_CACHE_PATH,
+        )
+    ]
+
+
+def test_filter_tmdb_search_data_reviews_all_usable_candidates_for_year_conflict(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    review_calls = []
+
+    def choose_second_candidate(*args):
+        review_calls.append(args)
+        return args[2][1]
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", choose_second_candidate)
+    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
+    exact_title_wrong_year = {
+        "id": 1,
+        "name": "Imported Show",
+        "original_name": "Imported Show",
+        "first_air_date": "2000-01-01",
+    }
+    unrelated_candidate = {
+        "id": 2,
+        "name": "Correct Year But Different Name",
+        "original_name": "Different Name",
+        "first_air_date": "2024-01-01",
+    }
+    duplicate_candidate = {
+        "id": 2,
+        "name": "Duplicate Candidate",
+        "original_name": "Duplicate Candidate",
+    }
+    search_data = {
+        "shows": {
+            "Imported Show (2024)": [
+                exact_title_wrong_year,
+                unrelated_candidate,
+                duplicate_candidate,
+                {"id": 0},
+            ]
+        },
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert review_calls[0][2] == [exact_title_wrong_year, unrelated_candidate]
+    assert search_data["shows"]["Imported Show (2024)"] == [unrelated_candidate]
+
+
+def test_filter_tmdb_search_data_accepts_unique_original_title_and_matching_year(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+
+    def fail_input(_):
+        raise AssertionError("Unique direct matches must not prompt")
+
+    monkeypatch.setattr("builtins.input", fail_input)
+    candidate = {
+        "id": 1,
+        "name": "Localized Title",
+        "original_name": "Original Title",
+        "first_air_date": "2024-01-01",
+    }
+    search_data = {
+        "shows": {"Original Title (2024)": [candidate]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert search_data == {
+        "shows": {"Original Title (2024)": [candidate]},
+        "movies": {},
+    }
+
+
+def test_filter_tmdb_search_data_reviews_all_candidates_for_ambiguous_direct_match(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        tmdb,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
+    review_calls = []
+
+    def choose_last_candidate(*args):
+        review_calls.append(args)
+        return args[2][-1]
+
+    monkeypatch.setattr(tmdb, "choose_tmdb_match", choose_last_candidate)
+    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
+    first_match = {"id": 1, "name": "Imported Show", "original_name": "One"}
+    second_match = {"id": 2, "name": "Imported Show", "original_name": "Two"}
+    unrelated_candidate = {"id": 3, "name": "Unrelated", "original_name": "Other"}
+    search_data = {
+        "shows": {"Imported Show": [first_match, second_match, unrelated_candidate]},
+        "movies": {},
+    }
+
+    tmdb.filter_tmdb_search_data(search_data)
+
+    assert review_calls[0][2] == [first_match, second_match, unrelated_candidate]
+    assert search_data["shows"]["Imported Show"] == [unrelated_candidate]
 
 
 def test_filter_tmdb_search_data_uses_movie_fields_for_review(monkeypatch, tmp_path):
@@ -463,9 +637,7 @@ def test_filter_tmdb_search_data_uses_movie_fields_for_review(monkeypatch, tmp_p
     ]
 
 
-def test_filter_tmdb_search_data_skips_and_reports_malformed_candidates(
-    monkeypatch, tmp_path, capsys
-):
+def test_filter_tmdb_search_data_excludes_malformed_candidates(monkeypatch, tmp_path):
     monkeypatch.setattr(
         tmdb,
         "path_from_project_root",
@@ -483,44 +655,6 @@ def test_filter_tmdb_search_data_skips_and_reports_malformed_candidates(
 
     tmdb.filter_tmdb_search_data(search_data)
 
-    assert search_data["shows"]["Imported Show"] == [valid_candidate]
-    assert (
-        "Skipping 2 malformed TMDB candidates for show Imported Show."
-        in capsys.readouterr().out
-    )
-
-
-def test_filter_tmdb_search_data_uses_only_valid_candidates_for_alternative_titles(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
-    alternative_title_calls = []
-
-    def fake_fetch_alternative_titles(media_type, tmdb_id):
-        alternative_title_calls.append((media_type, tmdb_id))
-        return ["Imported Show"]
-
-    monkeypatch.setattr(
-        tmdb, "fetch_tmdb_alternative_titles", fake_fetch_alternative_titles
-    )
-    valid_candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {
-        "shows": {"Imported Show": ["malformed", valid_candidate, None]},
-        "movies": {},
-    }
-
-    tmdb.filter_tmdb_search_data(search_data)
-
-    assert alternative_title_calls == [("shows", 1)]
     assert search_data["shows"]["Imported Show"] == [valid_candidate]
 
 
@@ -535,11 +669,11 @@ def test_filter_tmdb_search_data_accepts_unique_show_and_movie_matches(
     show_candidate = {
         "id": 1,
         "name": "Imported Show",
-        "original_name": "Imported Show",
+        "original_name": "Different Original Show",
     }
     movie_candidate = {
         "id": 2,
-        "title": "Imported Movie",
+        "title": "Different Movie Title",
         "original_title": "Imported Movie",
     }
     search_data = {
@@ -553,77 +687,6 @@ def test_filter_tmdb_search_data_accepts_unique_show_and_movie_matches(
         "shows": {"Imported Show": [show_candidate]},
         "movies": {"Imported Movie": [movie_candidate]},
     }
-
-
-def test_filter_tmdb_search_data_deduplicates_alternative_title_requests(
-    monkeypatch, tmp_path
-):
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    monkeypatch.setattr(tmdb, "write_json", lambda *_: None)
-    alternative_title_calls = []
-
-    def fake_fetch_alternative_titles(media_type, tmdb_id):
-        alternative_title_calls.append((media_type, tmdb_id))
-        return ["Imported Show", "Localized Show"]
-
-    monkeypatch.setattr(
-        tmdb, "fetch_tmdb_alternative_titles", fake_fetch_alternative_titles
-    )
-    candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {
-        "shows": {
-            "Imported Show": [candidate],
-            "Localized Show": [candidate],
-        },
-        "movies": {},
-    }
-
-    tmdb.filter_tmdb_search_data(search_data)
-
-    assert alternative_title_calls == [("shows", 1)]
-    assert search_data["shows"] == {
-        "Imported Show": [candidate],
-        "Localized Show": [candidate],
-    }
-
-
-def test_filter_tmdb_search_data_reports_alternative_title_failure(
-    monkeypatch, tmp_path, capsys
-):
-    monkeypatch.setattr(
-        tmdb,
-        "path_from_project_root",
-        lambda file_path: str(tmp_path / Path(file_path).name),
-    )
-    def fail_fetch_alternative_titles(*_):
-        raise tmdb.requests.RequestException("temporary failure")
-
-    monkeypatch.setattr(
-        tmdb, "fetch_tmdb_alternative_titles", fail_fetch_alternative_titles
-    )
-    monkeypatch.setattr(tmdb, "choose_tmdb_match", lambda *_: None)
-    candidate = {
-        "id": 1,
-        "name": "Unrelated Show",
-        "original_name": "Unrelated Show",
-    }
-    search_data = {
-        "shows": {"Imported Show": [candidate]},
-        "movies": {},
-    }
-
-    tmdb.filter_tmdb_search_data(search_data)
-
-    assert search_data["shows"]["Imported Show"] == [candidate]
-    assert "Could not fetch alternative titles" in capsys.readouterr().out
 
 
 def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
@@ -646,7 +709,7 @@ def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
     tmdb.filter_tmdb_search_data(search_data)
 
     assert search_data["shows"]["Malformed Show"] == []
-    assert "No TMDB candidates for show Malformed Show." in capsys.readouterr().out
+    assert "Show Malformed Show: unresolved" in capsys.readouterr().out
 
 
 def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
@@ -669,7 +732,6 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
 
     monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
     monkeypatch.setattr(tmdb, "write_json", fake_write_json)
-    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
     show_candidate = {
         "id": 1,
         "name": "Unrelated Show",
@@ -690,12 +752,9 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
     assert review_calls == [("Show Review", "shows"), ("Movie Review", "movies")]
     assert search_data == {
         "shows": {"Show Review": [show_candidate]},
-        "movies": {"Movie Review": [movie_candidate]},
+        "movies": {"Movie Review": []},
     }
-    assert cache_writes == [
-        {"shows": {"1": []}, "movies": {"2": []}},
-        {"shows": {"Show Review": 1}, "movies": {}},
-    ]
+    assert cache_writes == [{"shows": {"Show Review": 1}, "movies": {}}]
     output = capsys.readouterr().out
     assert "\nReview [1/2]: Show Show Review\n" in output
     assert "\n\n\n" not in output
@@ -723,7 +782,6 @@ def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fai
 
     monkeypatch.setattr(tmdb, "choose_tmdb_match", fake_choose_tmdb_match)
     monkeypatch.setattr(tmdb, "write_json", fake_write_json)
-    monkeypatch.setattr(tmdb, "fetch_tmdb_alternative_titles", lambda *_: [])
     first_candidate = {
         "id": 1,
         "name": "Unrelated First Show",

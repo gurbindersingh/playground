@@ -18,7 +18,6 @@ from .models import (
     JSONValue,
     MovieWatchData,
     ShowWatchData,
-    TMDBAlternativeTitlesCache,
     TMDBDetailsData,
     TMDBMovieDetail,
     TMDBSearchCandidate,
@@ -33,7 +32,6 @@ TMDB_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data.json"
 TMDB_FILTERED_SEARCH_CACHE_PATH = "data/tvtime/tmdb_search_data_filtered.json"
 TMDB_DETAILS_CACHE_PATH = "data/tvtime/tmdb_details.json"
 TMDB_SELECTION_CACHE_PATH = "data/tvtime/tmdb_selection_cache.json"
-TMDB_ALTERNATIVE_TITLES_CACHE_PATH = "data/tvtime/tmdb_alternative_titles.json"
 TMDB_REQUEST_TIMEOUT = 30
 TMDB_REQUEST_INTERVAL = 1 / 3
 
@@ -85,16 +83,11 @@ EPISODE_METADATA_FIELDS = (
 )
 _AUTOMATIC_MATCH_REASONS = frozenset(
     {
-        "cached manual selection",
         "exact title",
         "exact title and year",
-        "alternative title",
-        "alternative title and year",
     }
 )
-type TMDBReviewEntry = tuple[
-    list[TMDBSearchCandidate], str, tuple[str, str, str]
-]
+type TMDBReviewEntry = tuple[list[TMDBSearchCandidate], str, tuple[str, str, str]]
 type TMDBReviewEntries = dict[tuple[str, str], TMDBReviewEntry]
 
 
@@ -158,57 +151,27 @@ def validate_tmdb_search_cache(data: object, cache_path: str) -> TMDBSearchData:
 
 
 def validate_tmdb_selection_cache(data: object, cache_path: str) -> TMDBSelectionCache:
-    """Validate and return a cache of manually selected TMDB IDs.
+    """Validate and return a cache of selected or unresolved TMDB IDs.
 
-    Every show and movie title must map to an exact integer ID. Booleans are
-    rejected even though Python treats them as integers in some comparisons.
-    The original dictionary is returned or ``TypeError`` identifies the cache
-    path and expected mapping.
+    Every show and movie title must map to a positive exact integer ID or
+    ``None`` for a known unresolved title. Booleans, zero, and negative IDs are
+    rejected. The original dictionary is returned or ``TypeError`` identifies
+    the cache path and expected mapping.
     """
     cache = _require_tmdb_cache_sections(data, cache_path)
     for media_type in ("shows", "movies"):
         section = cast(dict[object, object], cache[media_type])
         for source_title, tmdb_id in section.items():
-            if not isinstance(source_title, str) or type(tmdb_id) is not int:
+            if not isinstance(source_title, str) or (
+                tmdb_id is not None and (type(tmdb_id) is not int or tmdb_id <= 0)
+            ):
                 raise TypeError(
                     f"Invalid TMDB selection cache at {cache_path}: expected every "
-                    f"'{media_type}' entry to map a title to an integer TMDB ID."
+                    f"'{media_type}' entry to map a title to a positive integer "
+                    "TMDB ID or null."
                 )
 
     return cast(TMDBSelectionCache, cache)
-
-
-def validate_tmdb_alternative_titles_cache(
-    data: object, cache_path: str
-) -> TMDBAlternativeTitlesCache:
-    """Validate cached alternative titles keyed by string TMDB IDs.
-
-    Every media section must map a canonical string representation of an integer
-    TMDB ID to a list containing only strings. The original dictionary is
-    returned or ``TypeError`` identifies the invalid cache structure.
-    """
-    cache = _require_tmdb_cache_sections(data, cache_path)
-    for media_type in ("shows", "movies"):
-        section = cast(dict[object, object], cache[media_type])
-        for cache_key, titles in section.items():
-            valid_cache_key = False
-            if isinstance(cache_key, str):
-                try:
-                    valid_cache_key = cache_key == str(int(cache_key))
-                except ValueError:
-                    pass
-            if (
-                not valid_cache_key
-                or not isinstance(titles, list)
-                or any(not isinstance(title, str) for title in titles)
-            ):
-                raise TypeError(
-                    f"Invalid TMDB alternative titles cache at {cache_path}: "
-                    f"expected every '{media_type}' entry to map a string TMDB ID "
-                    "to a list of strings."
-                )
-
-    return cast(TMDBAlternativeTitlesCache, cache)
 
 
 def validate_tmdb_details_cache(data: object, cache_path: str) -> TMDBDetailsData:
@@ -324,7 +287,7 @@ def get_single_candidate_id(candidates: object) -> int | None:
         return None
 
     tmdb_id = candidate.get("id")
-    return tmdb_id if type(tmdb_id) is int else None
+    return tmdb_id if type(tmdb_id) is int and tmdb_id > 0 else None
 
 
 def is_valid_tmdb_detail(detail: object, tmdb_id: int) -> bool:
@@ -334,11 +297,10 @@ def is_valid_tmdb_detail(detail: object, tmdb_id: int) -> bool:
     from being accepted. The function performs no validation of optional detail
     metadata.
     """
-    return (
-        isinstance(detail, dict)
-        and type(detail.get("id")) is int
-        and detail.get("id") == tmdb_id
-    )
+    if not isinstance(detail, dict):
+        return False
+    detail_id = detail.get("id")
+    return type(detail_id) is int and detail_id > 0 and detail_id == tmdb_id
 
 
 def normalize_tmdb_title(title: str) -> str:
@@ -390,47 +352,8 @@ def matches_tmdb_date(
     return bool(
         expected_year
         and isinstance(candidate_date, str)
-        and candidate_date.startswith(expected_year)
+        and candidate_date[:4] == expected_year
     )
-
-
-def fetch_tmdb_alternative_titles(media_type: str, tmdb_id: int) -> list[str]:
-    """Fetch known alternative title strings for one TMDB candidate.
-
-    ``media_type`` selects the TV or movie endpoint and response list name. A
-    missing ``TMDB_TOKEN`` returns an empty list so matching can continue
-    without alternative-title evidence. The function sleeps after a completed
-    request attempt, passes request and JSON errors to the caller, raises
-    ``TypeError`` for a non-object response, and ignores malformed title rows.
-    """
-    api_key = os.getenv("TMDB_TOKEN")
-    if not api_key:
-        return []
-
-    tmdb_media_type = "tv" if media_type == "shows" else "movie"
-    response = requests.get(
-        f"{TMDB_API_BASE_URL}/{tmdb_media_type}/{tmdb_id}/alternative_titles",
-        headers={"Authorization": f"Bearer {api_key}"},
-        timeout=TMDB_REQUEST_TIMEOUT,
-    )
-    try:
-        response.raise_for_status()
-        alternative_title_data = response.json()
-    finally:
-        time.sleep(TMDB_REQUEST_INTERVAL)
-
-    if not isinstance(alternative_title_data, dict):
-        raise TypeError("TMDB alternative-title response is not an object.")
-    title_entries = alternative_title_data.get(
-        "results" if media_type == "shows" else "titles", []
-    )
-    if not isinstance(title_entries, list):
-        return []
-    return [
-        title_entry["title"]
-        for title_entry in title_entries
-        if isinstance(title_entry, dict) and isinstance(title_entry.get("title"), str)
-    ]
 
 
 def fetch_details(
@@ -675,29 +598,22 @@ def filter_tmdb_candidates(
     title_field: str,
     original_title_field: str,
     date_field: str,
-    cached_tmdb_id: int | None,
+    cached_tmdb_id: int | None = None,
     alternative_titles: dict[int, list[str]] | None = None,
 ) -> tuple[list[TMDBSearchCandidate], str]:
     """Narrow one title's candidates and explain the matching evidence.
 
-    Non-dictionary entries are ignored. Matching compares candidate IDs with
-    ``cached_tmdb_id``, then considers exact primary or original titles,
-    optional alternative titles, and an optional year parsed from
-    ``source_title``. An ID match is accepted only when its direct title and
-    year agree; conflicts remain for review. Callers use ``None`` when no manual
-    ID is cached, so malformed candidates without IDs are an unresolved edge
-    case rather than trusted input.
+    Only dictionary candidates with positive exact integer IDs are considered.
+    Duplicate IDs retain their first result row. A unique direct primary or
+    original title match is accepted automatically, subject to an optional source
+    year. Every review result retains the full usable candidate list.
 
     The returned reason describes why the candidate list is trusted or why it
     remains ambiguous. The input list and candidate dictionaries are not
-    mutated.
+    mutated. ``cached_tmdb_id`` and ``alternative_titles`` are retained for
+    callers using the former interface and do not affect cache-first matching.
     """
-    # TODO: I feel like this function can be decomposed into smaller functions
-    valid_search_candidates = [
-        cast(TMDBSearchCandidate, candidate)
-        for candidate in candidates
-        if isinstance(candidate, dict)
-    ]
+    valid_search_candidates = _usable_tmdb_candidates(candidates)
 
     lookup_title, lookup_year = parse_title_and_year(source_title)
     direct_title_matches = [
@@ -707,62 +623,40 @@ def filter_tmdb_candidates(
             candidate, lookup_title, title_field, original_title_field
         )
     ]
-    title_matches = direct_title_matches
-
-    if not title_matches and alternative_titles is not None:
-        normalized_lookup_title = normalize_tmdb_title(lookup_title)
-        title_matches = [
-            candidate
-            for candidate in valid_search_candidates
-            if _matches_alternative_title(
-                candidate, normalized_lookup_title, alternative_titles
-            )
-        ]
-        match_type = "alternative title" if title_matches else "no exact title match"
-    elif title_matches:
-        match_type = "exact title"
-    else:
-        match_type = "no exact title match"
-
-    # TODO: Can this be simplified? It's hard to read unless you know what
-    # next() does. And this seems overly complicated.
-    cached_match = next(
-        (
-            candidate
-            for candidate in valid_search_candidates
-            if candidate.get("id") == cached_tmdb_id
-        ),
-        None,
-    )
-    # An ID match is evidence only when its current title and year also agree.
-    if cached_match is not None:
-        cached_title_matches = cached_match in direct_title_matches
-        cached_year_matches = not lookup_year or matches_tmdb_date(
-            cached_match, date_field, lookup_year
-        )
-        if cached_title_matches and cached_year_matches:
-            return [cached_match], "cached manual selection"
-
-        review_candidates = title_matches or [cached_match]
-        return review_candidates, "cached selection conflicts with title or year"
-
-    if not title_matches:
-        return valid_search_candidates, match_type
+    if not direct_title_matches:
+        return valid_search_candidates, "no exact title match"
 
     if lookup_year:
         year_matches = [
             candidate
-            for candidate in title_matches
+            for candidate in direct_title_matches
             if matches_tmdb_date(candidate, date_field, lookup_year)
         ]
         if len(year_matches) == 1:
-            return year_matches, f"{match_type} and year"
-        return year_matches or title_matches, f"{match_type} has no unique year match"
+            return year_matches, "exact title and year"
+        return valid_search_candidates, "exact title has no unique year match"
 
-    if len(title_matches) == 1:
-        return title_matches, match_type
+    if len(direct_title_matches) == 1:
+        return direct_title_matches, "exact title"
 
-    return title_matches, f"{match_type} is ambiguous"
+    return valid_search_candidates, "exact title is ambiguous"
+
+
+def _usable_tmdb_candidates(candidates: list[object]) -> list[TMDBSearchCandidate]:
+    """Return first candidate rows with distinct positive exact integer IDs."""
+    valid_search_candidates: list[TMDBSearchCandidate] = []
+    seen_ids: set[int] = set()
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_id = candidate.get("id")
+        if type(candidate_id) is not int or candidate_id <= 0:
+            continue
+        if candidate_id in seen_ids:
+            continue
+        seen_ids.add(candidate_id)
+        valid_search_candidates.append(cast(TMDBSearchCandidate, candidate))
+    return valid_search_candidates
 
 
 def choose_tmdb_match(
@@ -784,21 +678,17 @@ def choose_tmdb_match(
     one-item list can still be used downstream. Input exhaustion and numeric
     conversion errors are not handled specially and propagate.
     """
-    print(f"\n\n\nReview {media_type[:-1]} match for {source_title}:")
     print(f"Reason: {reason}")
     for index, candidate in enumerate(candidates, start=1):
         candidate_date = candidate.get(date_field)
         tmdb_id = candidate.get("id")
-        print(f"{index}.")
-        print("-----")
         print(
-            f"{candidate.get(title_field) or '<Unknown>'} | "
+            f"{index}. {candidate.get(title_field) or '<Unknown>'} | "
             f"{candidate.get(original_title_field) or '<Unknown>'} | "
             f"{candidate_date or '<Unknown>'} | "
             f"{tmdb_id if tmdb_id is not None else '<Unknown>'}"
         )
-        print(f"Description: {candidate.get('overview') or '<Unknown>'}")
-        print("-----")
+        print(f"   Description: {candidate.get('overview') or '<Unknown>'}")
 
     while True:
         choice = input(
@@ -811,26 +701,6 @@ def choose_tmdb_match(
             if 1 <= choice_number <= len(candidates):
                 return candidates[choice_number - 1]
         print(f"Enter a number from 1 to {len(candidates)}.")
-
-
-def _matches_alternative_title(
-    candidate: TMDBSearchCandidate,
-    normalized_lookup_title: str,
-    alternative_titles: dict[int, list[str]],
-) -> bool:
-    """Check cached alternative titles for one candidate's exact normalized title.
-
-    Candidates without an exact integer ID cannot be looked up and return
-    ``False``. Alternative titles are expected to have been fetched earlier in
-    the filtering pass.
-    """
-    candidate_id = candidate.get("id")
-    if type(candidate_id) is not int:
-        return False
-    return any(
-        normalize_tmdb_title(title) == normalized_lookup_title
-        for title in alternative_titles.get(candidate_id, [])
-    )
 
 
 def _load_tmdb_selection_cache() -> TMDBSelectionCache:
@@ -851,82 +721,6 @@ def _load_tmdb_selection_cache() -> TMDBSelectionCache:
     return {"shows": {}, "movies": {}}
 
 
-def _load_tmdb_alternative_titles_cache() -> TMDBAlternativeTitlesCache:
-    """Load cached alternative titles, or return an empty cache.
-
-    An existing cache is decoded and validated with its project-relative path.
-    Missing caches are created in memory only when the filtering pass discovers
-    alternative titles to persist.
-    """
-    if os.path.exists(path_from_project_root(TMDB_ALTERNATIVE_TITLES_CACHE_PATH)):
-        print("Alternative-title cache found")
-        return validate_tmdb_alternative_titles_cache(
-            read_tmdb_cache(TMDB_ALTERNATIVE_TITLES_CACHE_PATH),
-            TMDB_ALTERNATIVE_TITLES_CACHE_PATH,
-        )
-
-    print("No alternative-title cache found")
-    return {"shows": {}, "movies": {}}
-
-
-def _fetch_alternative_titles_for_candidates(
-    media_type: str,
-    source_title: str,
-    candidates: list[TMDBSearchCandidate],
-    alternative_titles_cache: dict[tuple[str, int], list[str]],
-    failed_alternative_titles: set[tuple[str, int]],
-    progress_prefix: str,
-) -> dict[int, list[str]]:
-    """Fetch alternative titles for valid candidates, reusing run-local results.
-
-    Only candidates with exact integer IDs are requested. Results and failed
-    requests are cached for the current filtering run, so repeated candidates
-    do not cause repeated network requests. Alternative-title request failures
-    are reported and represented as empty evidence.
-    """
-    candidate_ids = [
-        candidate.get("id")
-        for candidate in candidates
-        if type(candidate.get("id")) is int
-    ]
-    print(
-        f"{progress_prefix}: checking alternative titles for "
-        f"{len(candidate_ids)} candidates."
-    )
-    alternative_titles: dict[int, list[str]] = {}
-    for candidate in candidates:
-        tmdb_id = candidate.get("id")
-        if type(tmdb_id) is not int:
-            continue
-        cache_key = (media_type, tmdb_id)
-        if cache_key not in alternative_titles_cache:
-            if cache_key in failed_alternative_titles:
-                alternative_titles[tmdb_id] = []
-                continue
-            print(
-                f"{progress_prefix}: fetching alternative titles for "
-                f"TMDB ID {tmdb_id}."
-            )
-            try:
-                alternative_titles_cache[cache_key] = (
-                    fetch_tmdb_alternative_titles(media_type, tmdb_id)
-                )
-            except (
-                requests.RequestException,
-                TypeError,
-                ValueError,
-            ) as error:
-                print(
-                    f"Could not fetch alternative titles for "
-                    f"{media_type[:-1]} {source_title} ({tmdb_id}): {error}"
-                )
-                alternative_titles_cache[cache_key] = []
-                failed_alternative_titles.add(cache_key)
-        alternative_titles[tmdb_id] = alternative_titles_cache[cache_key]
-
-    return alternative_titles
-
-
 def _filter_tmdb_search_entry(
     media_type: str,
     source_title: str,
@@ -934,67 +728,29 @@ def _filter_tmdb_search_entry(
     title_field: str,
     original_title_field: str,
     date_field: str,
-    cached_tmdb_id: int | None,
-    alternative_titles_cache: dict[tuple[str, int], list[str]],
-    failed_alternative_titles: set[tuple[str, int]],
     progress_prefix: str,
 ) -> tuple[list[TMDBSearchCandidate], str]:
-    """Filter one source title and perform its alternative-title fallback.
-
-    Non-dictionary candidates are removed before matching. The first matching
-    pass may be followed by alternative-title requests only when it reports
-    exactly ``"no exact title match"``. The returned reason is retained for
-    review classification by the public filtering coordinator.
-    """
-    valid_search_candidates = [
-        cast(TMDBSearchCandidate, candidate)
-        for candidate in search_candidates
-        if isinstance(candidate, dict)
-    ]
-    malformed_count = len(search_candidates) - len(valid_search_candidates)
-    if malformed_count:
-        candidate_label = "candidate" if malformed_count == 1 else "candidates"
-        print(
-            f"Skipping {malformed_count} malformed TMDB {candidate_label} "
-            f"for {media_type[:-1]} {source_title}."
-        )
-
+    """Filter one uncached source title using direct title and year evidence."""
     filtered_results, reason = filter_tmdb_candidates(
-        cast(list[object], valid_search_candidates),
+        search_candidates,
         source_title,
         title_field,
         original_title_field,
         date_field,
-        cached_tmdb_id,
     )
+    discarded_count = len(search_candidates) - len(
+        _usable_tmdb_candidates(search_candidates)
+    )
+    if discarded_count:
+        candidate_label = "candidate" if discarded_count == 1 else "candidates"
+        print(
+            f"Skipping {discarded_count} unusable or duplicate TMDB {candidate_label} "
+            f"for {media_type[:-1]} {source_title}."
+        )
     print(
-        f"{progress_prefix}: initial filtering left "
+        f"{progress_prefix}: filtering left "
         f"{len(filtered_results)} candidates ({reason})."
     )
-
-    if reason == "no exact title match" and valid_search_candidates:
-        alternative_titles = _fetch_alternative_titles_for_candidates(
-            media_type,
-            source_title,
-            valid_search_candidates,
-            alternative_titles_cache,
-            failed_alternative_titles,
-            progress_prefix,
-        )
-        filtered_results, reason = filter_tmdb_candidates(
-            cast(list[object], valid_search_candidates),
-            source_title,
-            title_field,
-            original_title_field,
-            date_field,
-            cached_tmdb_id,
-            alternative_titles,
-        )
-        print(
-            f"{progress_prefix}: alternative-title filtering left "
-            f"{len(filtered_results)} candidates ({reason})."
-        )
-
     return filtered_results, reason
 
 
@@ -1006,9 +762,8 @@ def _review_tmdb_entries(
 ) -> None:
     """Resolve review entries and persist successful manual selections.
 
-    Review entries are processed in their existing insertion order. Empty
-    entries remain unresolved without prompting, skipped entries retain their
-    current candidates, and successful selections mutate the filtered search
+    Review entries are processed in their existing insertion order. Skipped
+    entries become unresolved, and successful selections mutate filtered search
     data before writing the selection cache. Input and write failures propagate
     after any earlier mutations and writes.
     """
@@ -1016,20 +771,14 @@ def _review_tmdb_entries(
 
     selected_during_review = 0
     skipped_during_review = 0
-    no_candidates_for_review = 0
     for review_index, ((media_type, source_title), review_entry) in enumerate(
         review_entries.items(), start=1
     ):
         search_candidates, reason, review_fields = review_entry
         print(
-            f"Review [{review_index}/{len(review_entries)}]: "
-            f"{media_type[:-1].title()} {source_title}."
+            f"\nReview [{review_index}/{len(review_entries)}]: "
+            f"{media_type[:-1].title()} {source_title}"
         )
-        if not search_candidates:
-            print(f"No TMDB candidates for {media_type[:-1]} {source_title}.")
-            no_candidates_for_review += 1
-            continue
-
         title_field, original_title_field, date_field = review_fields
         selected_match = choose_tmdb_match(
             source_title,
@@ -1043,11 +792,12 @@ def _review_tmdb_entries(
         if selected_match is None:
             print(f"Review skipped for {media_type[:-1]} {source_title}.")
             skipped_during_review += 1
+            tmdb_search_data[media_type][source_title] = []
             continue
 
         tmdb_search_data[media_type][source_title] = [selected_match]
         selected_tmdb_id = selected_match.get("id")
-        if type(selected_tmdb_id) is int:
+        if type(selected_tmdb_id) is int and selected_tmdb_id > 0:
             selection_cache[media_type][source_title] = selected_tmdb_id
         selected_during_review += 1
         print(
@@ -1061,43 +811,30 @@ def _review_tmdb_entries(
         f"{processed_entries} entries processed, "
         f"{len(review_entries)} required review, "
         f"{selected_during_review} selected, "
-        f"{skipped_during_review} skipped, "
-        f"{no_candidates_for_review} had no candidates."
+        f"{skipped_during_review} skipped."
     )
 
 
 def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     """Resolve TMDB search candidates automatically or through user review.
 
-    The function loads and validates prior manual selections, removes
-    non-dictionary candidates, and applies title and year matching. Alternative
-    titles are fetched only when the first filtering pass reports exactly
-    ``"no exact title match"``. Ambiguous or conflicting results are collected
-    and presented through :func:`choose_tmdb_match` after automatic filtering
-    finishes.
+    Cached positive IDs are selected unconditionally and cached ``None`` values
+    remain unresolved. Uncached entries use direct title and optional year
+    matching, while every other usable candidate list is reviewed interactively.
 
     ``tmdb_search_data`` is mutated so each title contains its filtered or
-    selected candidates. New manual IDs are written atomically to the selection
-    cache. The caller owns persistence of the filtered search data itself.
-    Alternative titles are loaded from their ID-keyed cache and newly fetched
-    successful responses are written after review. Alternative-title request
-    failures are reported and treated as no evidence. Cache-validation,
-    interactive input, serialization, and cache-write errors propagate after any
-    preceding in-memory mutations.
+    selected candidates. New manual IDs and no-candidate ``None`` values are
+    written atomically to the selection cache. The caller owns persistence of
+    the filtered search data itself. Cache-validation, interactive input,
+    serialization, and cache-write errors propagate after any preceding
+    in-memory mutations.
     """
     selection_cache = _load_tmdb_selection_cache()
-    persisted_alternative_titles = _load_tmdb_alternative_titles_cache()
-
     media_type_configs = (
         ("shows", "name", "original_name", "first_air_date"),
         ("movies", "title", "original_title", "release_date"),
     )
     review_entries: TMDBReviewEntries = {}
-    alternative_titles_cache: dict[tuple[str, int], list[str]] = {}
-    for media_type in ("shows", "movies"):
-        for cache_key, titles in persisted_alternative_titles[media_type].items():
-            alternative_titles_cache[(media_type, int(cache_key))] = titles
-    failed_alternative_titles: set[tuple[str, int]] = set()
     total_entries = sum(
         len(tmdb_search_data[media_type]) for media_type, _, _, _ in media_type_configs
     )
@@ -1117,6 +854,16 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                 f"{media_type[:-1].title()} {source_title}"
             )
             print(f"{progress_prefix}: filtering {len(search_candidates)} candidates.")
+            if source_title in selection_cache[media_type]:
+                cached_tmdb_id = selection_cache[media_type][source_title]
+                if cached_tmdb_id is None:
+                    tmdb_search_data[media_type][source_title] = []
+                    print(f"{progress_prefix}: unresolved (cached null).")
+                    continue
+                tmdb_search_data[media_type][source_title] = [{"id": cached_tmdb_id}]
+                print(f"{progress_prefix}: accepted cached TMDB ID {cached_tmdb_id}.")
+                continue
+
             filtered_results, reason = _filter_tmdb_search_entry(
                 media_type,
                 source_title,
@@ -1124,13 +871,15 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
                 title_field,
                 original_title_field,
                 date_field,
-                selection_cache[media_type].get(source_title),
-                alternative_titles_cache,
-                failed_alternative_titles,
                 progress_prefix,
             )
 
             tmdb_search_data[media_type][source_title] = filtered_results
+            if not filtered_results:
+                selection_cache[media_type][source_title] = None
+                print(f"{progress_prefix}: unresolved (no usable candidates).")
+                write_json(selection_cache, TMDB_SELECTION_CACHE_PATH)
+                continue
             if reason not in _AUTOMATIC_MATCH_REASONS:
                 review_entries[(media_type, source_title)] = (
                     filtered_results,
@@ -1147,17 +896,3 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
         review_entries,
         processed_entries,
     )
-
-    alternative_titles_written = False
-    for (media_type, tmdb_id), titles in alternative_titles_cache.items():
-        cache_key = str(tmdb_id)
-        if (media_type, tmdb_id) in failed_alternative_titles:
-            continue
-        if persisted_alternative_titles[media_type].get(cache_key) != titles:
-            persisted_alternative_titles[media_type][cache_key] = titles
-            alternative_titles_written = True
-    if alternative_titles_written:
-        write_json(
-            persisted_alternative_titles,
-            TMDB_ALTERNATIVE_TITLES_CACHE_PATH,
-        )

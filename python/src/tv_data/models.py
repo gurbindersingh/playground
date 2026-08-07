@@ -154,13 +154,8 @@ class TMDBSearchPage(TypedDict):
 
 
 class TMDBSelectionCache(TypedDict):
-    shows: Required[dict[str, int]]
-    movies: Required[dict[str, int]]
-
-
-class TMDBAlternativeTitlesCache(TypedDict):
-    shows: Required[dict[str, list[str]]]
-    movies: Required[dict[str, list[str]]]
+    shows: Required[dict[str, int | None]]
+    movies: Required[dict[str, int | None]]
 
 
 class TMDBShowDetail(TypedDict):

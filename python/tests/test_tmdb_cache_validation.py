@@ -47,48 +47,20 @@ def test_validate_tmdb_search_cache_rejects_invalid_structure(data, message):
         tmdb.validate_tmdb_search_cache(data, "search.json")
 
 
-def test_validate_tmdb_selection_cache_accepts_exact_integer_ids():
-    data = {"shows": {"Example Show": 1}, "movies": {"Example Movie": 2}}
+def test_validate_tmdb_selection_cache_accepts_positive_integer_ids_and_null():
+    data = {"shows": {"Example Show": 1}, "movies": {"Example Movie": None}}
 
     validated = tmdb.validate_tmdb_selection_cache(data, "selection.json")
 
     assert validated is data
 
 
-@pytest.mark.parametrize("invalid_id", [True, False, "1", None])
-def test_validate_tmdb_selection_cache_rejects_non_integer_ids(invalid_id):
+@pytest.mark.parametrize("invalid_id", [True, False, "1", 0, -1])
+def test_validate_tmdb_selection_cache_rejects_invalid_selection_values(invalid_id):
     data = {"shows": {"Example Show": invalid_id}, "movies": {}}
 
-    with pytest.raises(TypeError, match=r"selection\.json.*integer TMDB ID"):
+    with pytest.raises(TypeError, match=r"selection\.json.*positive integer TMDB ID"):
         tmdb.validate_tmdb_selection_cache(data, "selection.json")
-
-
-def test_validate_tmdb_alternative_titles_cache_accepts_string_lists():
-    data = {
-        "shows": {"1": ["Localized Show"]},
-        "movies": {"2": []},
-    }
-
-    validated = tmdb.validate_tmdb_alternative_titles_cache(data, "alternative.json")
-
-    assert validated is data
-
-
-@pytest.mark.parametrize(
-    "invalid_entry",
-    [
-        {"not-an-id": ["Title"]},
-        {"1": "Title"},
-        {"1": ["Title", 2]},
-    ],
-)
-def test_validate_tmdb_alternative_titles_cache_rejects_invalid_entries(
-    invalid_entry,
-):
-    data = {"shows": invalid_entry, "movies": {}}
-
-    with pytest.raises(TypeError, match=r"alternative\.json.*list of strings"):
-        tmdb.validate_tmdb_alternative_titles_cache(data, "alternative.json")
 
 
 def test_validate_tmdb_details_cache_accepts_matching_integer_ids():
@@ -129,6 +101,11 @@ def test_validate_tmdb_details_cache_rejects_invalid_entries(
 
 def test_is_valid_tmdb_detail_rejects_boolean_id():
     assert not tmdb.is_valid_tmdb_detail({"id": True}, 1)
+
+
+@pytest.mark.parametrize("invalid_id", [True, 0, -1])
+def test_get_single_candidate_id_rejects_invalid_ids(invalid_id):
+    assert tmdb.get_single_candidate_id([{"id": invalid_id}]) is None
 
 
 def test_filter_tmdb_search_data_validates_existing_selection_cache(
