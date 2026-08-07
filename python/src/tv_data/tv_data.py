@@ -48,7 +48,7 @@ def create_watch_record(
     """Create the initial mutable record used while combining CSV rows.
 
     ``media_name`` is the already-trimmed TV Time title. Shows start with an
-    empty watched-episode list and an active archive state; movies imported from
+    empty watched-episode list and an active watching state; movies imported from
     TV Time start as watched. Sentinel timestamps allow aggregation to replace
     them with the earliest creation and latest relevant update strings.
     """
@@ -58,7 +58,7 @@ def create_watch_record(
             # These defaults make overwrite conditions simpler and sorting easier.
             "created_at": LATEST_TIMESTAMP,
             "updated_at": EARLIEST_TIMESTAMP,
-            "is_archived": False,
+            "still_watching": True,
             "episodes_watched": [],
         }
     return {
@@ -97,8 +97,9 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
     Rows with blank names are reported and skipped. For each show, aggregation
     keeps the earliest creation timestamp, and collects episodes from both TV
     Time column naming formats. A truthy raw archive value on a row at least as
-    new as the stored update changes archive status; only ``"true"`` and ``"1"``
-    mean archived. Episode numbers are converted to integers, and a missing
+    new as the stored update changes still-watching status; only ``"true"`` and
+    ``"1"`` mean the show is no longer being watched. Episode numbers are
+    converted to integers, and a missing
     season is stored as ``-1``. Invalid numbers or a missing ``updated_at`` key
     for an imported episode raise normal conversion or key errors; blank cell
     values are not validated.
@@ -128,13 +129,13 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
 
         if updated_at and updated_at >= show_data["updated_at"]:
             if archived_value:
-                previous_archived_value = show_data["is_archived"]
-                show_data["is_archived"] = archived_value.lower().strip() in [
+                previous_still_watching_value = show_data["still_watching"]
+                show_data["still_watching"] = archived_value.lower().strip() not in [
                     "true",
                     "1",
                 ]
-                if show_data["is_archived"] != previous_archived_value:
-                    print(f"Updated archived status for show {show_name}.")
+                if show_data["still_watching"] != previous_still_watching_value:
+                    print(f"Updated still-watching status for show {show_name}.")
             if archived_value:
                 show_data["updated_at"] = updated_at
 

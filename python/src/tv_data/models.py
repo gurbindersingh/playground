@@ -68,7 +68,7 @@ class WatchData(TypedDict):
 
 
 class AggregatedShowWatchData(WatchData):
-    is_archived: bool
+    still_watching: bool
     episodes_watched: list[AggregatedWatchedEpisode]
 
 
@@ -77,7 +77,7 @@ class AggregatedMovieWatchData(WatchData):
 
 
 class EnrichedShowWatchData(WatchData):
-    is_archived: bool
+    still_watching: bool
     episodes_watched: list[EnrichedWatchedEpisode]
     first_air_date: str | None
     last_air_date: str | None

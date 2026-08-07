@@ -38,7 +38,7 @@ def test_aggregate_show_data_reads_both_episode_column_formats(
     ] == expected_episode_numbers
 
 
-def test_aggregate_show_data_merges_timestamps_archive_and_episode_columns(monkeypatch):
+def test_aggregate_show_data_merges_timestamps_watching_status_and_episode_columns(monkeypatch):
     rows = [
         {
             "series_name": " Example Show ",
@@ -72,13 +72,28 @@ def test_aggregate_show_data_merges_timestamps_archive_and_episode_columns(monke
             "name": "Example Show",
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-03-02 10:00:00",
-            "is_archived": True,
+            "still_watching": False,
             "episodes_watched": [
                 {"season": 1, "episode": 1, "updated_at": "2024-02-02 10:00:00"},
                 {"season": 1, "episode": 2, "updated_at": "2024-03-02 10:00:00"},
             ],
         }
     }
+
+
+def test_aggregate_show_data_inverts_unarchived_status(monkeypatch):
+    rows = [
+        {
+            "series_name": "Example Show",
+            "updated_at": "2024-01-02 10:00:00",
+            "is_archived": "false",
+        }
+    ]
+    monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
+
+    aggregated = tv_data.aggregate_show_data({}, "ignored.csv")
+
+    assert aggregated["Example Show"]["still_watching"] is True
 
 
 def test_aggregate_show_data_ignores_reported_episode_count(monkeypatch):
@@ -106,7 +121,7 @@ def test_aggregate_show_data_ignores_reported_episode_count(monkeypatch):
     assert "total_episodes_watched" not in aggregated["Example Show"]
 
 
-def test_aggregate_show_data_does_not_replace_newer_archive_status(monkeypatch):
+def test_aggregate_show_data_does_not_replace_newer_watching_status(monkeypatch):
     rows = [
         {
             "series_name": "Example Show",
@@ -124,7 +139,7 @@ def test_aggregate_show_data_does_not_replace_newer_archive_status(monkeypatch):
     aggregated = tv_data.aggregate_show_data({}, "ignored.csv")
 
     assert aggregated["Example Show"]["updated_at"] == "2024-03-01 10:00:00"
-    assert aggregated["Example Show"]["is_archived"] is True
+    assert aggregated["Example Show"]["still_watching"] is False
 
 
 def test_aggregate_show_data_reports_blank_name_with_csv_row(monkeypatch, capsys):
@@ -230,7 +245,7 @@ def test_sort_episodes_ascending_orders_by_season_and_episode():
             "name": "Example Show",
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
-            "is_archived": False,
+            "still_watching": True,
             "episodes_watched": [
                 {"season": 2, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
                 {"season": 1, "episode": 2, "updated_at": "2024-01-02 10:00:00"},
@@ -241,7 +256,7 @@ def test_sort_episodes_ascending_orders_by_season_and_episode():
             "name": "Empty Show",
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
-            "is_archived": False,
+            "still_watching": True,
             "episodes_watched": [],
         },
     }
@@ -261,7 +276,7 @@ def test_deduplicate_show_episodes_removes_duplicate_and_zero_episode_entries():
             "name": "Example Show",
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
-            "is_archived": False,
+            "still_watching": True,
             "episodes_watched": [
                 {"season": 1, "episode": 1, "updated_at": "2024-01-01 10:00:00"},
                 {"season": 1, "episode": 1, "updated_at": "2024-01-02 10:00:00"},
@@ -308,7 +323,7 @@ def test_deduplicate_show_episodes_always_cleans_episode_list(
             "name": "Example Show",
             "created_at": "2024-01-01 10:00:00",
             "updated_at": "2024-01-02 10:00:00",
-            "is_archived": False,
+            "still_watching": True,
             "episodes_watched": episodes,
         }
     ]

@@ -71,8 +71,8 @@ retain their earliest `created_at`, and movies retain their latest `updated_at`.
 A show's `updated_at` changes when the row timestamp is nonblank and at least as
 new as the stored value, and the raw archive column is truthy. Whitespace alone
 is truthy before trimming and therefore updates the timestamp while setting
-`is_archived` to false. Only archive values `true` and `1`, ignoring case and
-surrounding whitespace, mean archived.
+`still_watching` to true. Only archive values `true` and `1`, ignoring case and
+surrounding whitespace, set `still_watching` to false.
 
 ## Pipeline Stages
 
