@@ -670,29 +670,38 @@ def choose_tmdb_match(
 ) -> TMDBSearchCandidate | None:
     """Ask the user to resolve one TMDB candidate list requiring review.
 
-    Candidate titles, dates, IDs, and overviews are printed with the reason
-    automatic matching could not decide. The prompt repeats until the user
-    enters a valid one-based candidate number or ``s``/``skip``. A candidate
-    dictionary is returned for a selection and ``None`` means no manual choice
-    was made. The caller leaves the filtered candidate list unchanged, so a
-    one-item list can still be used downstream. Input exhaustion and numeric
-    conversion errors are not handled specially and propagate.
+    Labelled candidate cards with title, date, ID, and an overview preview are
+    printed with the reason automatic matching could not decide. The prompt
+    repeats until the user enters a valid one-based candidate number or
+    ``s``/``skip``. A candidate dictionary is returned for a selection and
+    ``None`` means no manual choice was made. The caller leaves the filtered
+    candidate list unchanged, so a one-item list can still be used downstream.
+    Input exhaustion and numeric conversion errors are not handled specially
+    and propagate.
     """
-    print(f"Reason: {reason}")
+    print(f"Review required: {reason}.")
+    print(f"Source {media_type[:-1].title()}: {source_title}")
+    print("Select the closest result, or skip.\n")
     for index, candidate in enumerate(candidates, start=1):
+        candidate_title = candidate.get(title_field) or "<Unknown>"
+        original_title = candidate.get(original_title_field)
         candidate_date = candidate.get(date_field)
         tmdb_id = candidate.get("id")
+        overview = " ".join(str(candidate.get("overview") or "<Unknown>").split())
+        overview_preview = overview[:117] + "..." if len(overview) > 120 else overview
+
+        print(f"  [{index}] {candidate_title}")
+        if original_title and original_title != candidate_title:
+            print(f"      Original: {original_title}")
         print(
-            f"{index}. {candidate.get(title_field) or '<Unknown>'} | "
-            f"{candidate.get(original_title_field) or '<Unknown>'} | "
-            f"{candidate_date or '<Unknown>'} | "
-            f"{tmdb_id if tmdb_id is not None else '<Unknown>'}"
+            f"      Released: {candidate_date or '<Unknown>'}    "
+            f"TMDB ID: {tmdb_id if tmdb_id is not None else '<Unknown>'}"
         )
-        print(f"   Description: {candidate.get('overview') or '<Unknown>'}")
+        print(f"      Overview: {overview_preview}\n")
 
     while True:
         choice = input(
-            "Choose a match by number, or type s/skip to leave unresolved: "
+            f"Choose [1-{len(candidates)}], or [s]kip: "
         ).strip()
         if choice.lower() in ("s", "skip"):
             return None

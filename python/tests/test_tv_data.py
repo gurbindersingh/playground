@@ -166,7 +166,7 @@ def test_filter_tmdb_candidates_requires_review_for_conflicting_year():
     assert reason == "exact title has no unique year match"
 
 
-def test_choose_tmdb_match_prints_compact_review_options(monkeypatch, capsys):
+def test_choose_tmdb_match_prints_labelled_review_cards(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _: "skip")
 
     selected = tmdb.choose_tmdb_match(
@@ -196,12 +196,39 @@ def test_choose_tmdb_match_prints_compact_review_options(monkeypatch, capsys):
 
     assert selected is None
     assert capsys.readouterr().out == (
-        "Reason: exact title is ambiguous\n"
-        "1. Suits | Suits | 2011-06-23 | 37680\n"
-        "   Description: American legal drama.\n"
-        "2. Suits | SUITS/スーツ | 2018-10-08 | 83334\n"
-        "   Description: Japanese legal drama.\n"
+        "Review required: exact title is ambiguous.\n"
+        "Source Show: Suits\n"
+        "Select the closest result, or skip.\n"
+        "\n"
+        "  [1] Suits\n"
+        "      Released: 2011-06-23    TMDB ID: 37680\n"
+        "      Overview: American legal drama.\n"
+        "\n"
+        "  [2] Suits\n"
+        "      Original: SUITS/スーツ\n"
+        "      Released: 2018-10-08    TMDB ID: 83334\n"
+        "      Overview: Japanese legal drama.\n"
+        "\n"
     )
+
+
+def test_choose_tmdb_match_truncates_and_normalizes_overview(monkeypatch, capsys):
+    monkeypatch.setattr("builtins.input", lambda _: "skip")
+    overview = "First sentence.\n" + "x" * 120
+
+    tmdb.choose_tmdb_match(
+        "Unrelated",
+        "movies",
+        [{"id": 1, "title": "Candidate", "overview": overview}],
+        "title",
+        "original_title",
+        "release_date",
+        "no exact title match",
+    )
+
+    output = capsys.readouterr().out
+    assert "\n" not in output.split("Overview: ", maxsplit=1)[1].split("\n", 1)[0]
+    assert "Overview: First sentence. " + "x" * 101 + "...\n" in output
 
 
 def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
