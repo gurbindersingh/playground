@@ -6,7 +6,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Mapping
-from typing import cast
+from typing import TypeGuard, cast
 
 import requests
 
@@ -205,6 +205,98 @@ def validate_tmdb_details_cache(data: object, cache_path: str) -> TMDBDetailsDat
     return cast(TMDBDetailsData, cache)
 
 
+def is_tmdb_search_candidate(candidate: object) -> TypeGuard[TMDBSearchCandidate]:
+    """Return whether a candidate has the supported TMDB field types.
+
+    Search cache entries remain untrusted until this check succeeds. All listed
+    fields are optional in TMDB responses, but a usable candidate requires a
+    positive exact integer ID. Unknown fields are ignored.
+    """
+    if not isinstance(candidate, dict):
+        return False
+
+    candidate_id = candidate.get("id")
+    if type(candidate_id) is not int or candidate_id <= 0:
+        return False
+
+    nullable_string_fields = (
+        "backdrop_path",
+        "first_air_date",
+        "overview",
+        "poster_path",
+        "release_date",
+    )
+    string_fields = (
+        "name",
+        "original_language",
+        "original_name",
+        "original_title",
+        "title",
+    )
+    if "adult" in candidate and type(candidate["adult"]) is not bool:
+        return False
+    if any(
+        field in candidate
+        and candidate[field] is not None
+        and not isinstance(candidate[field], str)
+        for field in nullable_string_fields
+    ):
+        return False
+    if any(
+        field in candidate and not isinstance(candidate[field], str)
+        for field in string_fields
+    ):
+        return False
+    if "genre_ids" in candidate and (
+        not isinstance(candidate["genre_ids"], list)
+        or any(type(genre_id) is not int for genre_id in candidate["genre_ids"])
+    ):
+        return False
+    if "origin_country" in candidate and (
+        not isinstance(candidate["origin_country"], list)
+        or any(not isinstance(country, str) for country in candidate["origin_country"])
+    ):
+        return False
+    if "popularity" in candidate and type(candidate["popularity"]) is not float:
+        return False
+    if "vote_average" in candidate and type(candidate["vote_average"]) is not float:
+        return False
+    return "vote_count" not in candidate or type(candidate["vote_count"]) is int
+
+
+def validate_tmdb_search_page(data: object) -> TMDBSearchPage:
+    """Validate a TMDB search response and discard malformed candidates.
+
+    Response pagination must be a positive exact integer and results must be a
+    list. Candidate validation is intentionally local to this API boundary so
+    usable entries still proceed when a response contains malformed siblings.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("TMDB search response must be a JSON object.")
+
+    results = data.get("results")
+    total_pages = data.get("total_pages")
+    if not isinstance(results, list) or type(total_pages) is not int or total_pages < 1:
+        raise ValueError(
+            "TMDB search response requires a result list and positive integer "
+            "total_pages."
+        )
+
+    search_page: TMDBSearchPage = {
+        "results": [candidate for candidate in results if is_tmdb_search_candidate(candidate)],
+        "total_pages": total_pages,
+    }
+    for field in ("page", "total_results"):
+        if field in data:
+            value = data[field]
+            if type(value) is not int:
+                raise ValueError(
+                    f"TMDB search response field '{field}' must be an integer."
+                )
+            search_page[field] = value
+    return search_page
+
+
 def parse_title_and_year(name: str) -> tuple[str, str | None]:
     """Split a source title from a final four-digit year in parentheses.
 
@@ -262,7 +354,7 @@ def search_tmdb(aggregated_watch_data: AggregatedWatchData) -> TMDBSearchData:
                 time.sleep(TMDB_REQUEST_INTERVAL)
                 response.raise_for_status()
 
-                search_page = cast(TMDBSearchPage, response.json())
+                search_page = validate_tmdb_search_page(response.json())
                 search_candidates.extend(search_page["results"])
                 total_pages = search_page["total_pages"]
                 page += 1
@@ -647,15 +739,15 @@ def _usable_tmdb_candidates(candidates: list[object]) -> list[TMDBSearchCandidat
     valid_search_candidates: list[TMDBSearchCandidate] = []
     seen_ids: set[int] = set()
     for candidate in candidates:
-        if not isinstance(candidate, dict):
+        if not is_tmdb_search_candidate(candidate):
             continue
         candidate_id = candidate.get("id")
-        if type(candidate_id) is not int or candidate_id <= 0:
+        if type(candidate_id) is not int:
             continue
         if candidate_id in seen_ids:
             continue
         seen_ids.add(candidate_id)
-        valid_search_candidates.append(cast(TMDBSearchCandidate, candidate))
+        valid_search_candidates.append(candidate)
     return valid_search_candidates
 
 

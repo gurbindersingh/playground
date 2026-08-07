@@ -58,6 +58,38 @@ def test_search_tmdb_searches_all_media_and_result_pages(monkeypatch):
     }
 
 
+def test_search_tmdb_rejects_malformed_response_envelope(monkeypatch):
+    monkeypatch.setenv("TMDB_TOKEN", "token")
+    monkeypatch.setattr(tmdb.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        tmdb.requests,
+        "get",
+        lambda *_args, **_kwargs: FakeResponse({"results": [], "total_pages": "one"}),
+    )
+
+    with pytest.raises(ValueError, match="positive integer total_pages"):
+        tmdb.search_tmdb({"shows": [{"name": "Show"}], "movies": []})
+
+
+def test_search_tmdb_skips_malformed_candidates_in_valid_response(monkeypatch):
+    monkeypatch.setenv("TMDB_TOKEN", "token")
+    monkeypatch.setattr(tmdb.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        tmdb.requests,
+        "get",
+        lambda *_args, **_kwargs: FakeResponse(
+            {
+                "results": [{"id": "not an integer"}, {"id": 1, "name": "Show"}],
+                "total_pages": 1,
+            }
+        ),
+    )
+
+    data = tmdb.search_tmdb({"shows": [{"name": "Show"}], "movies": []})
+
+    assert data == {"shows": {"Show": [{"id": 1, "name": "Show"}]}, "movies": {}}
+
+
 def test_search_tmdb_for_missing_searches_absent_and_empty_results(monkeypatch):
     aggregated = {
         "shows": [
@@ -143,6 +175,19 @@ def test_filter_tmdb_candidates_does_not_trust_unverified_single_result():
 def test_filter_tmdb_candidates_ignores_malformed_candidate():
     filtered, reason = tmdb.filter_tmdb_candidates(
         [["malformed candidate"]],
+        "Imported Title",
+        "name",
+        "original_name",
+        "first_air_date",
+    )
+
+    assert filtered == []
+    assert reason == "no exact title match"
+
+
+def test_filter_tmdb_candidates_ignores_candidate_with_invalid_supported_field():
+    filtered, reason = tmdb.filter_tmdb_candidates(
+        [{"id": 1, "name": 1}],
         "Imported Title",
         "name",
         "original_name",
@@ -894,6 +939,27 @@ def test_fetch_details_reuses_valid_cache_without_token(monkeypatch):
     assert failures == []
     assert details is cached_details
     assert details["movies"]["11"]["title"] == "Star Wars"
+
+
+def test_fetch_details_reports_invalid_detail_response(monkeypatch):
+    monkeypatch.setenv("TMDB_TOKEN", "token")
+    monkeypatch.setattr(tmdb.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        tmdb.requests,
+        "get",
+        lambda *_args, **_kwargs: FakeResponse({"id": "not an integer"}),
+    )
+
+    details, failures = tmdb.fetch_details(
+        {"shows": {"Example Show": [{"id": 1}]}, "movies": {}},
+        {"shows": {}, "movies": {}},
+    )
+
+    assert details == {"shows": {}, "movies": {}}
+    assert failures == [
+        "Could not fetch show Example Show (1): "
+        "TMDB detail response has an invalid or mismatched ID."
+    ]
 
 
 def test_fetch_details_writes_cache_after_every_five_requests(monkeypatch):
