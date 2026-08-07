@@ -1,9 +1,11 @@
 """Typed models for TV Time and TMDB JSON data."""
 
+from collections.abc import Mapping, Sequence
 from typing import NotRequired, Required, TypedDict
 
 type JSONPrimitive = str | int | float | bool | None
-type JSONValue = JSONPrimitive | list[JSONValue] | dict[str, JSONValue]
+type JSONValue = JSONPrimitive | Mapping[str, JSONValue] | Sequence[JSONValue]
+type CSVRow = dict[str | None, str | list[str] | None]
 
 
 class TMDBGenre(TypedDict):
@@ -204,3 +206,13 @@ class TMDBMovieDetail(TypedDict):
 class TMDBDetailsData(TypedDict):
     shows: Required[dict[str, TMDBShowDetail]]
     movies: Required[dict[str, TMDBMovieDetail]]
+
+
+type JSONDocument = (
+    JSONValue
+    | IndexedWatchData
+    | AggregatedWatchData
+    | TMDBSearchData
+    | TMDBSelectionCache
+    | TMDBDetailsData
+)

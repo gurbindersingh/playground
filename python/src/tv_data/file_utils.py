@@ -7,6 +7,8 @@ from pathlib import Path
 
 from utils.path_utils import path_from_project_root
 
+from .models import JSONDocument
+
 
 def read_json(file_path: str) -> object:
     """Decode and return a JSON file located relative to the project root.
@@ -20,7 +22,7 @@ def read_json(file_path: str) -> object:
         return json.load(json_file)
 
 
-def write_json(data: object, file_path: str) -> None:
+def write_json(data: JSONDocument, file_path: str) -> None:
     """Atomically write indented JSON to a project-relative file.
 
     Data is first written and flushed to a temporary file beside the

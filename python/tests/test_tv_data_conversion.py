@@ -147,6 +147,38 @@ def test_aggregate_show_data_reports_blank_name_with_csv_row(monkeypatch, capsys
     )
 
 
+def test_read_csv_rows_retains_missing_and_surplus_cells(monkeypatch, tmp_path):
+    csv_path = tmp_path / "shows.csv"
+    csv_path.write_text(
+        "series_name,created_at\nExample Show\nAnother Show,2024-01-01,extra\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tv_data, "path_from_project_root", lambda _: csv_path)
+
+    rows = tv_data.read_csv_rows("shows.csv")
+
+    assert rows == [
+        {"series_name": "Example Show", "created_at": None},
+        {"series_name": "Another Show", "created_at": "2024-01-01", None: ["extra"]},
+    ]
+
+
+def test_aggregate_show_data_skips_episode_with_missing_updated_at(monkeypatch):
+    rows = [
+        {
+            "series_name": "Example Show",
+            "s_no": "1",
+            "ep_no": "1",
+            "updated_at": None,
+        }
+    ]
+    monkeypatch.setattr(tv_data, "read_csv_rows", lambda _: rows)
+
+    aggregated = tv_data.aggregate_show_data({}, "shows.csv")
+
+    assert aggregated["Example Show"]["episodes_watched"] == []
+
+
 def test_aggregate_movie_data_keeps_earliest_creation_and_latest_update(monkeypatch):
     rows = [
         {

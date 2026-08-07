@@ -6,6 +6,7 @@ from typing import Literal, overload
 from utils.path_utils import path_from_project_root
 
 from .models import (
+    CSVRow,
     MovieIndex,
     MovieWatchData,
     ShowIndex,
@@ -68,19 +69,25 @@ def create_watch_record(
     }
 
 
-def read_csv_rows(file_path: str) -> list[dict[str, str]]:
+def read_csv_rows(file_path: str) -> list[CSVRow]:
     """Read an entire project-relative CSV file into row dictionaries.
 
     Dictionary keys normally come from the header row and populated values are
     strings because later aggregation decides how each column is interpreted.
-    Irregular rows can contain ``None`` for missing cells or a ``None`` key for
-    surplus cells. The file is opened as UTF-8 with CSV newline handling. File,
-    decoding, and CSV parsing errors are passed to the caller.
+    Missing cells are ``None`` and surplus cells are stored under a ``None`` key
+    as a list of strings. The file is opened as UTF-8 with CSV newline handling.
+    File, decoding, and CSV parsing errors are passed to the caller.
     """
     with open(
         path_from_project_root(file_path), newline="", encoding="utf-8"
     ) as csv_file:
         return list(csv.DictReader(csv_file))
+
+
+def get_csv_cell(csv_row: CSVRow, column: str) -> str | None:
+    """Return a string cell value, treating missing and surplus values as absent."""
+    value = csv_row.get(column)
+    return value if isinstance(value, str) else None
 
 
 def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
@@ -102,7 +109,7 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
     csv_rows = read_csv_rows(file_path)
 
     for row_number, csv_row in enumerate(csv_rows, start=2):
-        show_name = (csv_row.get(SERIES_NAME_COLUMN) or "").strip()
+        show_name = (get_csv_cell(csv_row, SERIES_NAME_COLUMN) or "").strip()
         if not show_name:
             print(f"Skipping blank show name in {file_path} at CSV row {row_number}.")
             continue
@@ -111,9 +118,9 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
             show_index[show_name] = create_watch_record(show_name)
 
         show_data = show_index[show_name]
-        created_at = csv_row.get(CREATED_AT_COLUMN)
-        updated_at = csv_row.get(UPDATED_AT_COLUMN)
-        archived_value = csv_row.get(IS_ARCHIVED_COLUMN)
+        created_at = get_csv_cell(csv_row, CREATED_AT_COLUMN)
+        updated_at = get_csv_cell(csv_row, UPDATED_AT_COLUMN)
+        archived_value = get_csv_cell(csv_row, IS_ARCHIVED_COLUMN)
 
         if created_at and created_at < show_data["created_at"]:
             show_data["created_at"] = created_at
@@ -135,15 +142,18 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
             (SHORT_SEASON_COLUMN, SHORT_EPISODE_COLUMN),
             (SEASON_NUMBER_COLUMN, EPISODE_NUMBER_COLUMN),
         ):
-            episode_number = csv_row.get(episode_column)
+            episode_number = get_csv_cell(csv_row, episode_column)
             if not episode_number:
                 continue
 
-            season_number = csv_row.get(season_column)
+            season_number = get_csv_cell(csv_row, season_column)
+            episode_updated_at = csv_row[UPDATED_AT_COLUMN]
+            if not isinstance(episode_updated_at, str):
+                continue
             watched_entry: WatchedEpisode = {
                 "season": int(season_number) if season_number else -1,
                 "episode": int(episode_number),
-                "updated_at": csv_row[UPDATED_AT_COLUMN],
+                "updated_at": episode_updated_at,
             }
             if watched_entry not in show_data["episodes_watched"]:
                 show_data["episodes_watched"].append(watched_entry)
@@ -163,7 +173,7 @@ def aggregate_movie_data(movie_index: MovieIndex, file_path: str) -> MovieIndex:
     csv_rows = read_csv_rows(file_path)
 
     for row_number, csv_row in enumerate(csv_rows, start=2):
-        movie_name = (csv_row.get(MOVIE_NAME_COLUMN) or "").strip()
+        movie_name = (get_csv_cell(csv_row, MOVIE_NAME_COLUMN) or "").strip()
         if not movie_name:
             print(f"Skipping blank movie name in {file_path} at CSV row {row_number}.")
             continue
@@ -172,8 +182,8 @@ def aggregate_movie_data(movie_index: MovieIndex, file_path: str) -> MovieIndex:
             movie_index[movie_name] = create_watch_record(movie_name, "movie")
 
         movie_data = movie_index[movie_name]
-        created_at = csv_row.get(CREATED_AT_COLUMN)
-        updated_at = csv_row.get(UPDATED_AT_COLUMN)
+        created_at = get_csv_cell(csv_row, CREATED_AT_COLUMN)
+        updated_at = get_csv_cell(csv_row, UPDATED_AT_COLUMN)
 
         if created_at and created_at < movie_data["created_at"]:
             movie_data["created_at"] = created_at
