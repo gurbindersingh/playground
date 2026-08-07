@@ -1046,10 +1046,11 @@ def test_enrich_watch_data_merges_allowlisted_fields_and_episode_defaults():
         },
     }
 
-    tmdb.enrich_watch_data(
+    enriched_watch_data = tmdb.enrich_watch_data(
         aggregated_watch_data, tmdb_search_data, tmdb_details
     )
 
+    assert enriched_watch_data is aggregated_watch_data
     show_record = aggregated_watch_data["shows"][0]
     episode = show_record["episodes_watched"][0]
     movie_record = aggregated_watch_data["movies"][0]

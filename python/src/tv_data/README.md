@@ -20,8 +20,7 @@ The project requires Python 3.13 or newer. `uv run` creates or updates the
 project environment from `pyproject.toml` and `uv.lock`, including `requests`.
 
 `TMDB_TOKEN` is required whenever uncached search or detail requests are needed.
-Alternative-title matching simply has no additional evidence when the token is
-missing, but missing search or detail data cannot be fetched.
+Missing search or detail data cannot be fetched without it.
 
 The command needs:
 
@@ -129,7 +128,7 @@ detail responses:
 | --- | --- |
 | `tmdb_search_data.json` | Raw search candidates returned by TMDB. |
 | `tmdb_search_data_filtered.json` | Candidates remaining after automatic and manual filtering. |
-| `tmdb_selection_cache.json` | Source-title to TMDB-ID choices made during interactive review. |
+| `tmdb_selection_cache.json` | Source-title to selected TMDB ID or `null` for a known unresolved title. |
 | `tmdb_details.json` | ID-keyed show and movie detail responses used for enrichment. |
 
 All paths are under `data/tvtime`.
@@ -138,11 +137,11 @@ All paths are under `data/tvtime`.
 
 On startup, an existing raw search cache is decoded and validated. Non-empty
 candidate lists are reused. Current input titles that are missing or have empty
-lists are searched again, which allows a later run to recover from a previous
-empty result. Cached titles absent from the current CSV library are never
-pruned. They are still filtered and processed for details along with current
-titles, so a stale entry can cause review, requests, or a detail failure in a
-later run.
+lists are searched again. A selection-cache `null` remains unresolved even if a
+later raw search finds candidates, until the cache is manually changed to a TMDB
+ID. Cached titles absent from the current CSV library are never pruned. They are
+still filtered and processed for details along with current titles, so a stale
+entry can cause review, requests, or a detail failure in a later run.
 
 The raw cache is written before filtering begins. Filtering then changes the
 in-memory candidate lists and writes those reduced lists to the filtered cache.
@@ -156,15 +155,15 @@ stage stops early, an older filtered file can remain beside a newer raw cache.
 
 ### Selection Cache
 
-Interactive choices with integer TMDB IDs are stored separately. A candidate
-without an integer ID can be chosen, but no ID is added to the cache and detail
-processing cannot use that choice. A cached choice is considered during future
-filtering. If its current direct title or optional year does not agree with the
-source title, it remains subject to review rather than being trusted silently.
+Positive integer TMDB IDs and known unresolved `null` values are stored by exact
+source title. A cached integer is trusted without checking current TMDB search
+results, titles, or years. It remains selected even when absent from the current
+search response. A cached `null` is reported as unresolved without prompting.
 
-The cache file is written immediately after each manual choice, so valid ID
-choices already made survive if the process stops. Existing entries are never
-pruned when titles disappear from the CSV library.
+An uncached title with no usable candidates is recorded as `null` immediately.
+An interactive integer-ID choice is also written immediately. Skipping review
+leaves the title absent from the cache, so it is prompted again later. Existing
+entries are never pruned when titles disappear from the CSV library.
 
 ### Detail Cache
 
@@ -187,7 +186,8 @@ application. The package validates persisted caches when reading them:
 
 - Every cache must be a JSON object with object-valued `shows` and `movies`.
 - Search-cache titles must map to candidate lists.
-- Selection-cache titles must map to exact integer IDs; booleans are rejected.
+- Selection-cache titles must map to a positive exact integer ID or `null`.
+  Booleans, zero, and negative IDs are rejected.
 - Detail entries must have string ID keys matching exact integer IDs inside the
   detail objects.
 
@@ -208,37 +208,27 @@ matching process.
 1. A final source suffix in the exact form ` (YYYY)`, including the preceding
    literal space, is separated from the title.
 2. Primary and original TMDB titles are compared with the source title.
-3. A candidate whose ID equals the cached manual ID is checked against its
-   current direct title and optional year. A compatible match wins; a conflict
-   is sent to review before ordinary year narrowing.
-4. When there is no decisive cached match and the first pass reports exactly
-   `no exact title match`, alternative titles may be fetched and compared.
-5. If the source supplied a year, `first_air_date` or `release_date` narrows the
-   remaining title matches.
-6. Ambiguous, conflicting, or unverified results are presented for review.
+3. A cached positive ID is selected immediately. A cached `null` remains
+   unresolved without prompting.
+4. For an uncached title, a unique direct title match is accepted automatically.
+   If the source supplied a year, the first four characters of `first_air_date`
+   or `release_date` must equal that year.
+5. Every other uncached entry with usable candidates is presented for review.
 
 Title comparison applies Unicode NFC normalization so canonically equivalent
 Unicode text compares equally. It does not lowercase, trim, remove accents, or
 normalize punctuation. Matching is otherwise exact.
 
-Malformed search entries that are not JSON objects are removed before any
-candidate field is accessed. Object candidates can still lack expected fields;
-missing values appear as unknown during interactive review.
-
-Alternative titles are cached only in memory for one filtering run. They are
-not persisted, so an eligible candidate can require the same request again on a
-later run. Requests still require an integer candidate ID, `TMDB_TOKEN`, and a
-first-pass reason of exactly `no exact title match`.
+Only candidates with positive exact integer IDs are usable. Duplicate IDs retain
+their first returned row. Other candidates are excluded before field access.
 
 ## Interactive Review
 
 When automatic matching cannot trust a result, the command prints each
 candidate's primary title, original title, date, ID, and overview. Enter the
 one-based candidate number to select it. Entering `s` or `skip` records no
-manual choice, but the caller leaves the filtered candidate list unchanged. If
-that list contains exactly one integer-ID candidate, detail fetching can still
-treat it as selected. This is a known limitation rather than a reliable way to
-force an unresolved result.
+manual choice, clears the filtered candidates, and leaves no selection-cache
+entry. The title is therefore unresolved and will be prompted again later.
 
 The prompt repeats after ordinary invalid input. End-of-file and some unusual
 Unicode numeric input can propagate an input or integer conversion error.
@@ -279,8 +269,6 @@ limiter.
 
 Search and detail requests use the bearer token from `TMDB_TOKEN`. HTTP errors,
 invalid search payloads, and cache checkpoint write errors can stop the command.
-Alternative-title request errors are reported and treated as no matching
-evidence so filtering can continue.
 
 ## Module Responsibilities
 
@@ -304,12 +292,10 @@ whether it mutates an argument, performs I/O, or propagates errors.
 - Raw, selection, and detail caches retain titles no longer present in the CSV
   library.
 - The filtered cache is write-only and can be stale after an interrupted run.
-- Search pagination and alternative-title requests have no retry or upper bound.
+- Search pagination has no retry or upper bound.
 - Episode-level TMDB metadata is not fetched.
 - Cache writes are atomic but are not protected by process locking.
 - Atomic replacement does not synchronize the destination directory, so it is
   not guaranteed durable across a system crash immediately after replacement.
-- A malformed object candidate without an ID can interact incorrectly with an
-  absent cached selection because both ID values are `None`.
-- `skip` does not clear a reviewed candidate list, so one remaining candidate
-  can still be used downstream.
+- Candidates without a positive integer ID are ignored.
+- `skip` clears the filtered candidate list and does not create a cache entry.

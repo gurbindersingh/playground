@@ -141,12 +141,14 @@ def main() -> None:
         )
 
     print("=== Enrich data ===")
-    enrich_watch_data(aggregated_watch_data, tmdb_search_data, tmdb_details)
+    enriched_watch_data = enrich_watch_data(
+        aggregated_watch_data, tmdb_search_data, tmdb_details
+    )
     write_json(
-        aggregated_watch_data,
+        enriched_watch_data,
         f"data/tvtime/watch_data_{snapshot_number}.json",
     )
-    write_json(aggregated_watch_data, "data/tvtime/watch_data_final.json")
+    write_json(enriched_watch_data, "data/tvtime/watch_data_final.json")
 
 
 if __name__ == "__main__":

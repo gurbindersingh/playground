@@ -5,7 +5,7 @@ import os
 import re
 import time
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TypeGuard, cast
 
 import requests
@@ -15,9 +15,9 @@ from utils.path_utils import path_from_project_root
 from .file_utils import read_json, write_json
 from .models import (
     AggregatedWatchData,
+    EnrichedWatchData,
     JSONValue,
-    MovieWatchData,
-    ShowWatchData,
+    MediaKind,
     TMDBDetailsData,
     TMDBMovieDetail,
     TMDBSearchCandidate,
@@ -88,7 +88,7 @@ _AUTOMATIC_MATCH_REASONS = frozenset(
     }
 )
 type TMDBReviewEntry = tuple[list[TMDBSearchCandidate], str, tuple[str, str, str]]
-type TMDBReviewEntries = dict[tuple[str, str], TMDBReviewEntry]
+type TMDBReviewEntries = dict[tuple[MediaKind, str], TMDBReviewEntry]
 
 
 def read_tmdb_cache(cache_path: str) -> object:
@@ -330,7 +330,7 @@ def search_tmdb(aggregated_watch_data: AggregatedWatchData) -> TMDBSearchData:
     headers = {"Authorization": f"Bearer {api_key}"}
     search_data: TMDBSearchData = {"shows": {}, "movies": {}}
 
-    endpoints = {
+    endpoints: dict[MediaKind, str] = {
         "shows": f"{TMDB_API_BASE_URL}/search/tv",
         "movies": f"{TMDB_API_BASE_URL}/search/movie",
     }
@@ -466,7 +466,7 @@ def fetch_details(
     followed by the configured request delay. Atomic checkpoint write failures
     propagate immediately after any preceding in-memory updates.
     """
-    endpoints = {
+    endpoints: dict[MediaKind, str] = {
         "shows": f"{TMDB_API_BASE_URL}/tv",
         "movies": f"{TMDB_API_BASE_URL}/movie",
     }
@@ -576,7 +576,7 @@ def enrich_watch_data(
     aggregated_watch_data: AggregatedWatchData,
     tmdb_search_data: TMDBSearchData,
     tmdb_details: TMDBDetailsData,
-) -> None:
+) -> EnrichedWatchData:
     """Enrich generated watch records with allowlisted cached TMDB details.
 
     Every record first receives stable defaults for its media type. Missing
@@ -587,62 +587,63 @@ def enrich_watch_data(
     For selected candidates, the function requires a valid cached detail,
     copies only the configured fields, and replaces the source name with a
     non-blank canonical TMDB name or title. It mutates
-    ``aggregated_watch_data`` and raises ``RuntimeError`` if a selected ID lacks
-    a matching detail entry.
+    ``aggregated_watch_data``, returns it as enriched data, and raises
+    ``RuntimeError`` if a selected ID lacks a matching detail entry.
     """
-    media_type_configs = (
-        ("shows", SHOW_NON_LIST_FIELDS, SHOW_LIST_FIELDS),
-        ("movies", MOVIE_NON_LIST_FIELDS, MOVIE_LIST_FIELDS),
-    )
-
-    for media_type, non_list_fields, list_fields in media_type_configs:
-        for watch_record in aggregated_watch_data[media_type]:
-            source_title = watch_record["name"]
+    for show_record in aggregated_watch_data["shows"]:
+        source_title = show_record["name"]
+        mutable_show_record = cast(dict[str, JSONValue], show_record)
+        add_missing_metadata_defaults(
+            mutable_show_record, SHOW_NON_LIST_FIELDS, SHOW_LIST_FIELDS
+        )
+        for episode in show_record["episodes_watched"]:
             add_missing_metadata_defaults(
-                cast(dict[str, JSONValue], watch_record),
-                non_list_fields,
-                list_fields,
+                cast(dict[str, JSONValue], episode), EPISODE_METADATA_FIELDS, ()
             )
 
-            if media_type == "shows":
-                show_record = cast(ShowWatchData, watch_record)
-                for episode in show_record["episodes_watched"]:
-                    add_missing_metadata_defaults(
-                        cast(dict[str, JSONValue], episode), EPISODE_METADATA_FIELDS, ()
-                    )
-
-            tmdb_id = get_single_candidate_id(
-                tmdb_search_data[media_type].get(source_title)
+        tmdb_id = get_single_candidate_id(tmdb_search_data["shows"].get(source_title))
+        if tmdb_id is None:
+            continue
+        detail = tmdb_details["shows"].get(str(tmdb_id))
+        if not is_valid_tmdb_detail(detail, tmdb_id):
+            raise RuntimeError(
+                f"Missing cached TMDB detail for show {source_title} ({tmdb_id})."
             )
-            if tmdb_id is None:
-                continue
 
-            if media_type == "shows":
-                detail = tmdb_details.get("shows", {}).get(str(tmdb_id))
-            else:
-                detail = tmdb_details.get("movies", {}).get(str(tmdb_id))
-            if not is_valid_tmdb_detail(detail, tmdb_id):
-                raise RuntimeError(
-                    f"Missing cached TMDB detail for {media_type[:-1]} "
-                    f"{source_title} ({tmdb_id})."
-                )
+        detail_data = cast(Mapping[str, object], detail)
+        for field in (*SHOW_NON_LIST_FIELDS, *SHOW_LIST_FIELDS):
+            if field in detail_data:
+                mutable_show_record[field] = cast(JSONValue, detail_data[field])
+        canonical_name = detail_data.get("name")
+        if isinstance(canonical_name, str) and canonical_name.strip():
+            show_record["name"] = canonical_name
 
-            detail_data = cast(Mapping[str, object], detail)
-            for field in (*non_list_fields, *list_fields):
-                if field in detail_data:
-                    cast(dict[str, JSONValue], watch_record)[field] = cast(
-                        JSONValue, detail_data[field]
-                    )
+    for movie_record in aggregated_watch_data["movies"]:
+        source_title = movie_record["name"]
+        mutable_movie_record = cast(dict[str, JSONValue], movie_record)
+        add_missing_metadata_defaults(
+            mutable_movie_record, MOVIE_NON_LIST_FIELDS, MOVIE_LIST_FIELDS
+        )
 
-            if media_type == "shows":
-                canonical_name = detail_data.get("name")
-                if isinstance(canonical_name, str) and canonical_name.strip():
-                    cast(ShowWatchData, watch_record)["name"] = canonical_name
-            else:
-                canonical_title = detail_data.get("title")
-                if isinstance(canonical_title, str) and canonical_title.strip():
-                    cast(MovieWatchData, watch_record)["name"] = canonical_title
-                    cast(MovieWatchData, watch_record)["title"] = canonical_title
+        tmdb_id = get_single_candidate_id(tmdb_search_data["movies"].get(source_title))
+        if tmdb_id is None:
+            continue
+        detail = tmdb_details["movies"].get(str(tmdb_id))
+        if not is_valid_tmdb_detail(detail, tmdb_id):
+            raise RuntimeError(
+                f"Missing cached TMDB detail for movie {source_title} ({tmdb_id})."
+            )
+
+        detail_data = cast(Mapping[str, object], detail)
+        for field in (*MOVIE_NON_LIST_FIELDS, *MOVIE_LIST_FIELDS):
+            if field in detail_data:
+                mutable_movie_record[field] = cast(JSONValue, detail_data[field])
+        canonical_title = detail_data.get("title")
+        if isinstance(canonical_title, str) and canonical_title.strip():
+            movie_record["name"] = canonical_title
+            mutable_movie_record["title"] = canonical_title
+
+    return cast(EnrichedWatchData, aggregated_watch_data)
 
 
 def search_tmdb_for_missing(
@@ -661,19 +662,15 @@ def search_tmdb_for_missing(
     """
     media_needing_search: AggregatedWatchData = {"shows": [], "movies": []}
 
-    for media_type in ("shows", "movies"):
-        cached_search_results = tmdb_search_data.setdefault(media_type, {})
+    for show_record in aggregated_watch_data["shows"]:
+        cached_shows = tmdb_search_data.setdefault("shows", {})
+        if not cached_shows.get(show_record["name"]):
+            media_needing_search["shows"].append(show_record)
 
-        for media_record in aggregated_watch_data[media_type]:
-            # Empty results are retried because they may reflect a transient search issue.
-            if cached_search_results.get(media_record["name"]):
-                continue
-            if media_type == "shows":
-                media_needing_search["shows"].append(cast(ShowWatchData, media_record))
-            else:
-                media_needing_search["movies"].append(
-                    cast(MovieWatchData, media_record)
-                )
+    for movie_record in aggregated_watch_data["movies"]:
+        cached_movies = tmdb_search_data.setdefault("movies", {})
+        if not cached_movies.get(movie_record["name"]):
+            media_needing_search["movies"].append(movie_record)
 
     # I hate these truthy values.
     if not media_needing_search["shows"] and not media_needing_search["movies"]:
@@ -685,7 +682,7 @@ def search_tmdb_for_missing(
 
 
 def filter_tmdb_candidates(
-    candidates: list[object],
+    candidates: Sequence[object],
     source_title: str,
     title_field: str,
     original_title_field: str,
@@ -734,7 +731,9 @@ def filter_tmdb_candidates(
     return valid_search_candidates, "exact title is ambiguous"
 
 
-def _usable_tmdb_candidates(candidates: list[object]) -> list[TMDBSearchCandidate]:
+def _usable_tmdb_candidates(
+    candidates: Sequence[object],
+) -> list[TMDBSearchCandidate]:
     """Return first candidate rows with distinct positive exact integer IDs."""
     valid_search_candidates: list[TMDBSearchCandidate] = []
     seen_ids: set[int] = set()
@@ -753,7 +752,7 @@ def _usable_tmdb_candidates(candidates: list[object]) -> list[TMDBSearchCandidat
 
 def choose_tmdb_match(
     source_title: str,
-    media_type: str,
+    media_type: MediaKind,
     candidates: list[TMDBSearchCandidate],
     title_field: str,
     original_title_field: str,
@@ -823,9 +822,9 @@ def _load_tmdb_selection_cache() -> TMDBSelectionCache:
 
 
 def _filter_tmdb_search_entry(
-    media_type: str,
+    media_type: MediaKind,
     source_title: str,
-    search_candidates: list[object],
+    search_candidates: Sequence[object],
     title_field: str,
     original_title_field: str,
     date_field: str,
@@ -931,7 +930,7 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
     in-memory mutations.
     """
     selection_cache = _load_tmdb_selection_cache()
-    media_type_configs = (
+    media_type_configs: tuple[tuple[MediaKind, str, str, str], ...] = (
         ("shows", "name", "original_name", "first_air_date"),
         ("movies", "title", "original_title", "release_date"),
     )
@@ -968,7 +967,7 @@ def filter_tmdb_search_data(tmdb_search_data: TMDBSearchData) -> None:
             filtered_results, reason = _filter_tmdb_search_entry(
                 media_type,
                 source_title,
-                cast(list[object], search_candidates),
+                search_candidates,
                 title_field,
                 original_title_field,
                 date_field,

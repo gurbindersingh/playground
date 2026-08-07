@@ -6,12 +6,12 @@ from typing import Literal, overload
 from utils.path_utils import path_from_project_root
 
 from .models import (
+    AggregatedMovieWatchData,
+    AggregatedShowWatchData,
+    AggregatedWatchedEpisode,
     CSVRow,
     MovieIndex,
-    MovieWatchData,
     ShowIndex,
-    ShowWatchData,
-    WatchedEpisode,
 )
 
 SERIES_NAME_COLUMN = "series_name"
@@ -33,18 +33,18 @@ LATEST_TIMESTAMP = "9999-99-99 99:99:99"
 @overload
 def create_watch_record(
     media_name: str, media_type: Literal["show"] = "show"
-) -> ShowWatchData: ...
+) -> AggregatedShowWatchData: ...
 
 
 @overload
 def create_watch_record(
     media_name: str, media_type: Literal["movie"]
-) -> MovieWatchData: ...
+) -> AggregatedMovieWatchData: ...
 
 
 def create_watch_record(
     media_name: str, media_type: Literal["show", "movie"] = "show"
-) -> ShowWatchData | MovieWatchData:
+) -> AggregatedShowWatchData | AggregatedMovieWatchData:
     """Create the initial mutable record used while combining CSV rows.
 
     ``media_name`` is the already-trimmed TV Time title. Shows start with an
@@ -150,7 +150,7 @@ def aggregate_show_data(show_index: ShowIndex, file_path: str) -> ShowIndex:
             episode_updated_at = csv_row[UPDATED_AT_COLUMN]
             if not isinstance(episode_updated_at, str):
                 continue
-            watched_entry: WatchedEpisode = {
+            watched_entry: AggregatedWatchedEpisode = {
                 "season": int(season_number) if season_number else -1,
                 "episode": int(episode_number),
                 "updated_at": episode_updated_at,
@@ -208,7 +208,7 @@ def sort_episodes_ascending(show_index: ShowIndex) -> None:
         )
 
 
-def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
+def deduplicate_show_episodes(shows: list[AggregatedShowWatchData]) -> None:
     """Replace each show's episode list with its cleaned equivalent.
 
     Cleaning delegates to :func:`deduplicate_episodes`, so duplicate episode
@@ -229,8 +229,8 @@ def deduplicate_show_episodes(shows: list[ShowWatchData]) -> None:
 
 
 def deduplicate_episodes(
-    episodes_watched: list[WatchedEpisode],
-) -> list[WatchedEpisode]:
+    episodes_watched: list[AggregatedWatchedEpisode],
+) -> list[AggregatedWatchedEpisode]:
     """Build a cleaned, ordered episode list without mutating the input.
 
     Episodes are identified by their ``(season, episode)`` pair. The entry with
@@ -239,7 +239,7 @@ def deduplicate_episodes(
     ``(0, 0)`` is discarded as an export placeholder, and the returned list is
     ordered by season and episode number.
     """
-    newest_episodes: dict[tuple[int, int], WatchedEpisode] = {}
+    newest_episodes: dict[tuple[int, int], AggregatedWatchedEpisode] = {}
     for episode in episodes_watched:
         episode_key = (episode["season"], episode["episode"])
         if episode_key == (0, 0):
