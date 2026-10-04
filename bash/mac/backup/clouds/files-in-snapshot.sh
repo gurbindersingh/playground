@@ -17,4 +17,13 @@ config="${XDG_CONFIG_HOME:-$HOME/.config}/cloud-backup.sh"
 
 snapshot="$1"
 
-restic ls "$snapshot"
+for drive in "${drives[@]:?}"; do
+  if [[ -e "$drive" ]]; then
+    export RESTIC_REPOSITORY="$drive/cloud_backups/"
+    echo "[INFO] Listing current snapshots '$RESTIC_REPOSITORY'"
+    restic ls "$snapshot"
+  else
+    echo "[INFO] Drive '$drive' is not connected"
+    exit 0
+  fi
+done
