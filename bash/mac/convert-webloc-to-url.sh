@@ -4,7 +4,7 @@ set -e
 log_file="$HOME/logs/convert-webloc.log"
 
 {
-  config="${XDG_CONFIG_HOME:-$HOME/.config}/convert-webloc-to-url.sh"
+  config="${XDG_CONFIG_HOME:-$HOME/.config/playground}/convert-webloc-to-url.sh"
   [ -r "$config" ] || {
     echo "Config not found: $config" >&2
     exit 1

@@ -3,7 +3,7 @@ set -e
 
 echo "[$(date +'%F %H:%M:%S')] Backing up Thunderbird profiles"
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/thunderbird-backup.sh"
+config="${XDG_CONFIG_HOME:-$HOME/.config/playground}/thunderbird-backup.sh"
 [ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
 . "$config"
 

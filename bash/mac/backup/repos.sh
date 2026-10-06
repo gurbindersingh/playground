@@ -3,7 +3,7 @@ set -e
 
 echo "[$(date +'%F %H:%M:%S')] Backing up Git repos"
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/repos-backup.sh"
+config="${XDG_CONFIG_HOME:-$HOME/.config/playground}/repos-backup.sh"
 [ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
 . "$config"
 

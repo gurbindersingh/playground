@@ -4,7 +4,7 @@ set -e
 echo "[$(date +'%F %H:%M:%S')] Backing up files"
 
 {
-  config="${XDG_CONFIG_HOME:-$HOME/.config}/files-backup.sh"
+  config="${XDG_CONFIG_HOME:-$HOME/.config/playground}/files-backup.sh"
   [ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
   . "$config"
 

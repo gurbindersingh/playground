@@ -3,7 +3,7 @@ set -e
 
 echo "[$(date +'%F %H:%M:%S')] Backing up Firefox profile"
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/firefox-backup.sh"
+config="${XDG_CONFIG_HOME:-$HOME/.config/playground}/firefox-backup.sh"
 [ -r "$config" ] || { echo "Config not found: $config" >&2; exit 1; }
 . "$config"
 
