@@ -13,7 +13,7 @@ log_file="$HOME/logs/convert-webloc.log"
   . "${config}"
 
   find "${links_directory:?}" -type f -iname '*.webloc' | while read -r file; do
-    webloc2url "$file"
+    ./webloc2url.sh "$file"
     echo "[$(date +'%F %H:%M:%S')] Converted $file"
     mv "$file" "$HOME/.trash-bin"
   done
