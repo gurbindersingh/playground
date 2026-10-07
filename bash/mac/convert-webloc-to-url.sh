@@ -12,6 +12,8 @@ log_file="$HOME/logs/convert-webloc.log"
   # shellcheck source=/dev/null
   . "${config}"
 
+  cd "$(dirname -- "${BASH_SOURCE[0]}")"
+
   find "${links_directory:?}" -type f -iname '*.webloc' | while read -r file; do
     ./webloc2url.sh "$file"
     echo "[$(date +'%F %H:%M:%S')] Converted $file"
