@@ -9,11 +9,13 @@ dependencies = [
   "pillow>=12.2.0",
   "pytest-playwright>=0.7.0",
   "requests>=2.32.3",
+  "typer>=0.21.0",
 ]
 
 [project.scripts]
 url-decode = "decode_url:main"
 image-hashing = "image_hashing:main"
+lw = "lw.cli:main"
 
 [tool.pyright]
 include = ["src/tv_data"]
