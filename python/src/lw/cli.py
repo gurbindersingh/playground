@@ -1,11 +1,13 @@
 """Command-line entry point for `lw`."""
 
+import json
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from lw.configuration import ConfigurationError, read_configuration
+from lw.library import LibraryError, read_library
 
 # `typer.Typer()` returns an application object that stores callbacks,
 # commands, options, and other CLI metadata.
@@ -78,14 +80,36 @@ def list_items(
 ) -> None:
     """List tracked movies and shows."""
     try:
-        read_configuration(context.obj["config_path"])
+        configuration = read_configuration(context.obj["config_path"])
     except ConfigurationError as error:
         # Configuration failures use the first application-specific exit code.
         # `err=True` keeps JSON stdout free of diagnostic text.
         typer.echo(f"Error: {error}", err=True)
         raise typer.Exit(code=3) from error
 
-    _ = json_output
+    try:
+        library = read_library(configuration.library_path)
+    except LibraryError as error:
+        # Library failures use the second application-specific exit code.
+        # `err=True` keeps JSON stdout free of diagnostic text.
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=4) from error
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 0,
+                    "movies": list(library.movies),
+                    "shows": list(library.shows),
+                },
+                separators=(",", ":"),
+            )
+        )
+        return
+
+    if not library.movies and not library.shows:
+        typer.echo("No tracked items.")
 
 
 # The installed `lw` command calls `main`, which then passes control to Typer
