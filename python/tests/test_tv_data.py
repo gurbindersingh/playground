@@ -2,12 +2,14 @@ import copy
 import json
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from tv_data import tmdb
+from tv_data import file_utils, tmdb
+from tv_data.models import AggregatedWatchData, TMDBDetailsData, TMDBSearchData
 
 
 class FakeResponse:
@@ -42,8 +44,23 @@ def test_search_tmdb_searches_all_media_and_result_pages(monkeypatch):
 
     data = tmdb.search_tmdb(
         {
-            "shows": [{"name": "Show (2020)"}],
-            "movies": [{"name": "Movie"}],
+            "shows": [
+                {
+                    "name": "Show (2020)",
+                    "created_at": "2026-01-01",
+                    "updated_at": "2026-01-01",
+                    "still_watching": True,
+                    "episodes_watched": [],
+                }
+            ],
+            "movies": [
+                {
+                    "name": "Movie",
+                    "created_at": "2026-01-01",
+                    "updated_at": "2026-01-01",
+                    "watched": False,
+                }
+            ],
         }
     )
 
@@ -68,7 +85,20 @@ def test_search_tmdb_rejects_malformed_response_envelope(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="positive integer total_pages"):
-        tmdb.search_tmdb({"shows": [{"name": "Show"}], "movies": []})
+        tmdb.search_tmdb(
+            {
+                "shows": [
+                    {
+                        "name": "Show",
+                        "created_at": "2026-01-01",
+                        "updated_at": "2026-01-01",
+                        "still_watching": True,
+                        "episodes_watched": [],
+                    }
+                ],
+                "movies": [],
+            }
+        )
 
 
 def test_search_tmdb_skips_malformed_candidates_in_valid_response(monkeypatch):
@@ -85,25 +115,64 @@ def test_search_tmdb_skips_malformed_candidates_in_valid_response(monkeypatch):
         ),
     )
 
-    data = tmdb.search_tmdb({"shows": [{"name": "Show"}], "movies": []})
+    data = tmdb.search_tmdb(
+        {
+            "shows": [
+                {
+                    "name": "Show",
+                    "created_at": "2026-01-01",
+                    "updated_at": "2026-01-01",
+                    "still_watching": True,
+                    "episodes_watched": [],
+                }
+            ],
+            "movies": [],
+        }
+    )
 
     assert data == {"shows": {"Show": [{"id": 1, "name": "Show"}]}, "movies": {}}
 
 
 def test_search_tmdb_for_missing_searches_absent_and_empty_results(monkeypatch):
-    aggregated = {
+    aggregated: AggregatedWatchData = {
         "shows": [
-            {"name": "Cached Show"},
-            {"name": "Empty Show"},
-            {"name": "New Show"},
+            {
+                "name": "Cached Show",
+                "created_at": "2026-01-01",
+                "updated_at": "2026-01-01",
+                "still_watching": True,
+                "episodes_watched": [],
+            },
+            {
+                "name": "Empty Show",
+                "created_at": "2026-01-01",
+                "updated_at": "2026-01-01",
+                "still_watching": True,
+                "episodes_watched": [],
+            },
+            {
+                "name": "New Show",
+                "created_at": "2026-01-01",
+                "updated_at": "2026-01-01",
+                "still_watching": True,
+                "episodes_watched": [],
+            },
         ],
-        "movies": [{"name": "New Movie"}],
+        "movies": [
+            {
+                "name": "New Movie",
+                "created_at": "2026-01-01",
+                "updated_at": "2026-01-01",
+                "watched": False,
+            }
+        ],
     }
-    tmdb_search_data = {
+    tmdb_search_data: TMDBSearchData = {
         "shows": {
             "Cached Show": [{"id": 1}],
             "Empty Show": [],
-        }
+        },
+        "movies": {},
     }
     search_calls = []
 
@@ -153,7 +222,7 @@ def test_filter_tmdb_candidates_matches_original_title():
         "first_air_date",
     )
 
-    assert [candidate["id"] for candidate in filtered] == [533514]
+    assert [candidate.get("id") for candidate in filtered] == [533514]
     assert reason == "exact title"
 
 
@@ -207,7 +276,7 @@ def test_filter_tmdb_candidates_requires_review_for_conflicting_year():
         "first_air_date",
     )
 
-    assert [candidate["id"] for candidate in filtered] == [1]
+    assert [candidate.get("id") for candidate in filtered] == [1]
     assert reason == "exact title has no unique year match"
 
 
@@ -306,7 +375,7 @@ def test_filter_tmdb_search_data_prompts_for_unverified_single_result(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data["shows"]["Imported Title"] == [
         {"id": 1, "name": "Unrelated Result", "original_name": "Unrelated Result"}
@@ -352,7 +421,7 @@ def test_filter_tmdb_search_data_uses_cached_id_absent_from_search_results(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {"shows": {"Imported Show": [{"id": 42}]}, "movies": {}}
 
@@ -396,7 +465,7 @@ def test_filter_tmdb_search_data_uses_cached_id_despite_title_and_year_conflict(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {
         "shows": {"Imported Show (2024)": [{"id": 42}]},
@@ -431,7 +500,7 @@ def test_filter_tmdb_search_data_reports_cached_null_without_prompt(
     monkeypatch.setattr("builtins.input", fail_input)
     search_data = {"shows": {"Imported Show": [{"id": 7}]}, "movies": {}}
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {"shows": {"Imported Show": []}, "movies": {}}
     assert "Show Imported Show: unresolved" in capsys.readouterr().out
@@ -456,7 +525,7 @@ def test_filter_tmdb_search_data_persists_null_for_no_usable_candidates(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {"shows": {"Unknown Show": []}, "movies": {}}
     assert cache_writes == [
@@ -490,7 +559,7 @@ def test_filter_tmdb_search_data_clears_skipped_review_candidates(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {"shows": {"Imported Show": []}, "movies": {}}
     assert cache_writes == []
@@ -546,7 +615,7 @@ def test_filter_tmdb_search_data_preserves_unrelated_cache_entries_when_selected
     }
     search_data = {"shows": {"New Show": [selected_candidate]}, "movies": {}}
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert cache_writes == [
         (
@@ -601,7 +670,7 @@ def test_filter_tmdb_search_data_reviews_all_usable_candidates_for_year_conflict
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert review_calls[0][2] == [exact_title_wrong_year, unrelated_candidate]
     assert search_data["shows"]["Imported Show (2024)"] == [unrelated_candidate]
@@ -631,7 +700,7 @@ def test_filter_tmdb_search_data_accepts_unique_original_title_and_matching_year
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {
         "shows": {"Original Title (2024)": [candidate]},
@@ -663,7 +732,7 @@ def test_filter_tmdb_search_data_reviews_all_candidates_for_ambiguous_direct_mat
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert review_calls[0][2] == [first_match, second_match, unrelated_candidate]
     assert search_data["shows"]["Imported Show"] == [unrelated_candidate]
@@ -694,7 +763,7 @@ def test_filter_tmdb_search_data_uses_movie_fields_for_review(monkeypatch, tmp_p
         "movies": {"Imported Movie (2024)": [candidate]},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert review_calls == [
         (
@@ -725,7 +794,7 @@ def test_filter_tmdb_search_data_excludes_malformed_candidates(monkeypatch, tmp_
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data["shows"]["Imported Show"] == [valid_candidate]
 
@@ -753,7 +822,7 @@ def test_filter_tmdb_search_data_accepts_unique_show_and_movie_matches(
         "movies": {"Imported Movie": [movie_candidate]},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data == {
         "shows": {"Imported Show": [show_candidate]},
@@ -769,6 +838,11 @@ def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
         "path_from_project_root",
         lambda file_path: str(tmp_path / Path(file_path).name),
     )
+    monkeypatch.setattr(
+        file_utils,
+        "path_from_project_root",
+        lambda file_path: tmp_path / Path(file_path).name,
+    )
     def fail_choose_tmdb_match(*_):
         raise AssertionError("Empty review entries must not prompt.")
 
@@ -778,7 +852,7 @@ def test_filter_tmdb_search_data_leaves_empty_review_entries_unresolved(
         "movies": {},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert search_data["shows"]["Malformed Show"] == []
     assert "Show Malformed Show: unresolved" in capsys.readouterr().out
@@ -819,7 +893,7 @@ def test_filter_tmdb_search_data_reviews_in_order_and_writes_selected_ids(
         "movies": {"Movie Review": [movie_candidate]},
     }
 
-    tmdb.filter_tmdb_search_data(search_data)
+    tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert review_calls == [("Show Review", "shows"), ("Movie Review", "movies")]
     assert search_data == {
@@ -873,7 +947,7 @@ def test_filter_tmdb_search_data_preserves_prior_work_when_later_cache_write_fai
     }
 
     with pytest.raises(OSError, match="disk full"):
-        tmdb.filter_tmdb_search_data(search_data)
+        tmdb.filter_tmdb_search_data(cast(TMDBSearchData, search_data))
 
     assert cache_writes == [{"shows": {"First Show": 1}, "movies": {}}]
     assert search_data == {
@@ -927,7 +1001,7 @@ def test_fetch_details_reuses_valid_cache_without_token(monkeypatch):
     monkeypatch.delenv("TMDB_TOKEN", raising=False)
     monkeypatch.setattr(tmdb.requests, "get", fail_get)
 
-    cached_details = {
+    cached_details: TMDBDetailsData = {
         "shows": {},
         "movies": {"11": {"id": 11, "title": "Star Wars"}},
     }
@@ -938,7 +1012,7 @@ def test_fetch_details_reuses_valid_cache_without_token(monkeypatch):
 
     assert failures == []
     assert details is cached_details
-    assert details["movies"]["11"]["title"] == "Star Wars"
+    assert details["movies"]["11"].get("title") == "Star Wars"
 
 
 def test_fetch_details_reports_invalid_detail_response(monkeypatch):
@@ -1047,7 +1121,9 @@ def test_enrich_watch_data_merges_allowlisted_fields_and_episode_defaults():
     }
 
     enriched_watch_data = tmdb.enrich_watch_data(
-        aggregated_watch_data, tmdb_search_data, tmdb_details
+        cast(AggregatedWatchData, aggregated_watch_data),
+        cast(TMDBSearchData, tmdb_search_data),
+        cast(TMDBDetailsData, tmdb_details),
     )
 
     assert enriched_watch_data is aggregated_watch_data
@@ -1086,9 +1162,12 @@ def test_enrich_watch_data_preserves_unmatched_names_and_uses_separate_lists():
     }
 
     tmdb.enrich_watch_data(
-        aggregated_watch_data,
-        {"shows": {"Unmatched One": [], "Unmatched Two": []}, "movies": {}},
-        {"shows": {}, "movies": {}},
+        cast(AggregatedWatchData, aggregated_watch_data),
+        cast(
+            TMDBSearchData,
+            {"shows": {"Unmatched One": [], "Unmatched Two": []}, "movies": {}},
+        ),
+        cast(TMDBDetailsData, {"shows": {}, "movies": {}}),
     )
 
     first_show, second_show = aggregated_watch_data["shows"]
