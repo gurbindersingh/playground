@@ -28,8 +28,11 @@ def test_list_accepts_the_json_option_without_loading_files() -> None:
     assert result.exit_code == 0
 
 
-def test_config_option_precedes_the_list_subcommand() -> None:
-    result = CliRunner().invoke(app, ["--config", "test-config.yaml", "list"])
+def test_config_option_precedes_the_list_subcommand(tmp_path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("library_path: library.json\n", encoding="utf-8")
+
+    result = CliRunner().invoke(app, ["--config", str(config_path), "list"])
 
     assert result.exit_code == 0
 
@@ -46,3 +49,14 @@ def test_unknown_subcommand_is_a_usage_error() -> None:
 
     assert result.exit_code == 2
     assert "No such command" in result.output
+
+
+def test_invalid_configuration_writes_only_to_stderr(tmp_path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("library_path: [\n", encoding="utf-8")
+
+    result = CliRunner().invoke(app, ["--config", str(config_path), "list", "--json"])
+
+    assert result.exit_code == 3
+    assert result.stdout == ""
+    assert "invalid YAML" in result.stderr

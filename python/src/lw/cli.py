@@ -5,6 +5,8 @@ from typing import Annotated
 
 import typer
 
+from lw.configuration import ConfigurationError, read_configuration
+
 # `typer.Typer()` returns an application object that stores callbacks,
 # commands, options, and other CLI metadata.
 #
@@ -75,7 +77,15 @@ def list_items(
     json_output: JsonOutput = False,
 ) -> None:
     """List tracked movies and shows."""
-    _ = context, json_output
+    try:
+        read_configuration(context.obj["config_path"])
+    except ConfigurationError as error:
+        # Configuration failures use the first application-specific exit code.
+        # `err=True` keeps JSON stdout free of diagnostic text.
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=3) from error
+
+    _ = json_output
 
 
 # The installed `lw` command calls `main`, which then passes control to Typer
