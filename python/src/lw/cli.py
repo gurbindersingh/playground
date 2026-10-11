@@ -1,6 +1,7 @@
 """Command-line entry point for `lw`."""
 
 import json
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -17,6 +18,77 @@ from lw.library import LibraryError, read_library
 # parsing and dispatches the selected callback or command.
 # https://typer.tiangolo.com/tutorial/typer-app/
 app = typer.Typer()
+
+# `add_typer` registers one Typer application below another. This lets `lw add`
+# group commands that create library items, while each nested command remains a
+# separate Python function.
+# https://typer.tiangolo.com/tutorial/subcommands/
+sub_app = typer.Typer()
+app.add_typer(sub_app, name="add")
+
+
+def validate_title(
+    _context: typer.Context, _parameter: typer.CallbackParam, values: list[str]
+) -> list[str]:
+    """Require exactly one non-empty title option value."""
+    if len(values) != 1:
+        raise typer.BadParameter("Give --title exactly once.")
+    if not values[0].strip():
+        raise typer.BadParameter("Give a title that is not empty.")
+    return values
+
+
+# A `list[str]` annotation gives this callback every title value. This command
+# rejects a duplicate title instead of accepting more than one value.
+# https://click.palletsprojects.com/en/stable/options/#multiple-options
+ShowTitle = Annotated[
+    list[str],
+    typer.Option(
+        "--title",
+        "-t",
+        help="Set the show title.",
+        callback=validate_title,
+    ),
+]
+
+
+def validate_seasons(
+    _context: typer.Context, _parameter: typer.CallbackParam, values: list[str]
+) -> list[str]:
+    """Validate the season data supplied to the add-show stub."""
+    for value in values:
+        match = re.fullmatch(r"(\d+):(\d+)(?::(\d+))?", value)
+        if match is None:
+            raise typer.BadParameter(
+                "Use SEASON:EPISODES[:AIRED_EPISODES] for each --season."
+            )
+
+        season, episodes, aired_episodes = (
+            int(component) if component is not None else None
+            for component in match.groups()
+        )
+        if season is None or season < 1:
+            raise typer.BadParameter("Season numbers must be positive integers.")
+        if episodes is None or episodes < 1:
+            raise typer.BadParameter("Episode counts must be positive integers.")
+        if aired_episodes is not None and (
+            aired_episodes < 1 or aired_episodes > episodes
+        ):
+            raise typer.BadParameter(
+                "Aired episode counts must be positive and not exceed episodes."
+            )
+    return values
+
+
+SeasonValues = Annotated[
+    list[str],
+    typer.Option(
+        "--season",
+        "-s",
+        help="Set SEASON:EPISODES[:AIRED_EPISODES]. Repeat for each season.",
+        callback=validate_seasons,
+    ),
+]
 
 
 # This defines a type alias for the root `--config` option. The callback can
@@ -110,6 +182,14 @@ def list_items(
 
     if not library.movies and not library.shows:
         typer.echo("No tracked items.")
+
+
+@sub_app.command(name="show")
+def add_show(title: ShowTitle, seasons: SeasonValues) -> None:
+    """Add a show to the library."""
+    # This stub validates its options only. Assigning the values marks them as
+    # intentionally unused until the persistence feature defines their schema.
+    _ = title, seasons
 
 
 # The installed `lw` command calls `main`, which then passes control to Typer

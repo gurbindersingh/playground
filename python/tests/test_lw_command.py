@@ -34,6 +34,53 @@ def test_installed_command_writes_help() -> None:
     assert result.stderr == ""
 
 
+def test_installed_command_accepts_the_add_show_stub() -> None:
+    result = run_lw("add", "show", "--title", "Example", "-s", "1:8", "-s", "2:10:3")
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (("add", "show"), "Missing option"),
+        (("add", "show", "--title", "Example"), "Missing option"),
+        (("add", "show", "--title", ""), "Give a title that is not empty."),
+        (("add", "show", "--title", "Example", "--title", "Another"), "Give --title exactly once."),
+        (
+            ("add", "show", "--title", "Example", "--season", "first:8"),
+            "Use SEASON:EPISODES",
+        ),
+        (
+            ("add", "show", "--title", "Example", "--season", "0:8"),
+            "Season numbers",
+        ),
+        (
+            ("add", "show", "--title", "Example", "--season", "1:0"),
+            "Episode counts",
+        ),
+        (
+            ("add", "show", "--title", "Example", "--season", "1:8:0"),
+            "Aired episode counts",
+        ),
+        (
+            ("add", "show", "--title", "Example", "--season", "1:8:9"),
+            "Aired episode counts",
+        ),
+    ],
+)
+def test_installed_command_rejects_invalid_add_show_options(
+    arguments: tuple[str, ...], message: str
+) -> None:
+    result = run_lw(*arguments)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert message in result.stderr
+
+
 @pytest.mark.parametrize(
     ("arguments", "expected_stdout"),
     [
